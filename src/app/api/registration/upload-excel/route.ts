@@ -149,26 +149,27 @@ export async function POST(req: NextRequest) {
             });
         });
 
-        // --- PROSES DATA PENDAMPING ---
-        let processedCompanions: CompanionRow[] = [];
-        const companionsSheet = workbook.getWorksheet('PENDAMPING');
-        if (companionsSheet) {
-            const companionHeaderRow = companionsSheet.getRow(6);
-            if (companionHeaderRow.hasValues) {
-                companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-                    if (rowNumber <= 6) return;
-                    const rawRowData: { [key: string]: any } = {};
-                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
-                        if (header) rawRowData[header] = getCellValue(cell);
-                    });
+       let processedCompanions: CompanionRow[] = []; // Gunakan `let` di sini
+const companionsSheet = workbook.getWorksheet('Data Pendamping');
+if (companionsSheet) {
+    const companionHeaderRow = companionsSheet.getRow(6);
+    if (companionHeaderRow.hasValues) {
+        companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+            if (rowNumber <= 3) return;
 
-                    if (rawRowData["NAMA LENGKAP"]) {
-                        processedCompanions.push(rawRowData as CompanionRow);
-                    }
-                });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawRowData: { [key: string]: any } = {}; // Nonaktifkan ESLint untuk baris ini
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
+                if (header) rawRowData[header] = getCellValue(cell);
+            });
+
+            if (rawRowData["NAMA LENGKAP"]) {
+                processedCompanions.push(rawRowData as CompanionRow);
             }
-        }
+        });
+    }
+}
         
         await Promise.all(imageSavePromises);
         
