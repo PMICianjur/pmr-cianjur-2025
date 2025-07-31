@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
         });
 
        const processedCompanions: CompanionRow[] = []; // Gunakan `let` di sini
-const companionsSheet = workbook.getWorksheet('Data Pendamping');
+const companionsSheet = workbook.getWorksheet('PESERTA');
 if (companionsSheet) {
     const companionHeaderRow = companionsSheet.getRow(6);
     if (companionHeaderRow.hasValues) {
