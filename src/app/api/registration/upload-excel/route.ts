@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
             });
         });
 
-       let processedCompanions: CompanionRow[] = []; // Gunakan `let` di sini
+       const processedCompanions: CompanionRow[] = []; // Gunakan `let` di sini
 const companionsSheet = workbook.getWorksheet('Data Pendamping');
 if (companionsSheet) {
     const companionHeaderRow = companionsSheet.getRow(6);
