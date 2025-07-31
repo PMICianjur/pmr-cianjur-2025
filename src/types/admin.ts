@@ -1,4 +1,4 @@
-// src/types/admin.ts
+
 
 // Kita definisikan ulang tipe Enum sebagai string literal.
 // Ini memutuskan hubungan dengan `@prisma/client` sepenuhnya.
@@ -39,7 +39,8 @@ export type FormattedRegistration = {
     companionCount: number;
     excelFilePath?: string | null;
     createdAt: string;
-     paymentId?: string | null;
+    receiptPath?: string | null;
+    paymentId?: string | null;
     manualProofPath?: string | null;
 };
 

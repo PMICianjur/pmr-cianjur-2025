@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import DownloadReceiptButton from "@/components/receipt/DownloadReceiptButton";
 import { type ReceiptData } from "@/types/receipt";
+import Link from "next/link"
 
 interface StatusConfig {
     Icon: React.ElementType;
@@ -36,7 +37,7 @@ export function StatusCard({ statusConfig, orderId, receiptData }: StatusCardPro
                         <DownloadReceiptButton data={receiptData} orderId={orderId} />
                     )}
                     <Button asChild variant="outline">
-                        <a href="/">Kembali ke Beranda</a>
+                        <Link href="/">Kembali ke Beranda</Link>
                     </Button>
                 </div>
             </CardContent>

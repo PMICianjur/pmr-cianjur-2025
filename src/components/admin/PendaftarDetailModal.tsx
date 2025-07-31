@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, AlertTriangle, User, Users, UserCheck, Tent, DollarSign } from "lucide-react";
+import { Loader2, AlertTriangle, User, Users, UserCheck, Tent, DollarSign, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { type RegistrationDetailPayload } from "@/types/registration";
 
@@ -124,10 +125,25 @@ export function PendaftarDetailModal({
                         </div>
                     </section>
                 </div>
-                 
-                {/* Tombol Bukti Bayar */}
-                {detail.payment?.manualProofPath && <Button asChild variant="outline" className="w-full"><a href={detail.payment.manualProofPath} target="_blank" rel="noopener noreferrer">Lihat Bukti Pembayaran</a></Button>}
-
+                {detail.payment?.method === 'MANUAL' && detail.payment?.manualProofPath && (
+                    <section>
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2 text-neutral-300">
+                            <ImageIcon size={18} /> Bukti Pembayaran Manual
+                        </h3>
+                        <div className="relative w-full h-auto min-h-[300px] flex items-center justify-center bg-black rounded-lg overflow-hidden border border-neutral-700">
+                            <a href={detail.payment.manualProofPath} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                                <Image
+                                    src={detail.payment.manualProofPath}
+                                    alt={`Bukti pembayaran untuk ${detail.school.name}`}
+                                    fill
+                                    className="object-contain transition-transform duration-300 hover:scale-105"
+                                    sizes="(max-width: 768px) 100vw, 50vw"
+                                />
+                            </a>
+                        </div>
+                         <p className="text-xs text-center mt-2 text-muted-foreground">Klik gambar untuk melihat ukuran penuh di tab baru.</p>
+                    </section>
+                )}
                  {/* Daftar Peserta */}
                 <section>
                     <h3 className="font-semibold text-lg flex items-center gap-2 mb-2 text-neutral-300"><Users size={18} /> Daftar Peserta</h3>
@@ -177,6 +193,7 @@ export function PendaftarDetailModal({
     </Table>
 </div>
                 </section>
+                
             </div>
         );
     };

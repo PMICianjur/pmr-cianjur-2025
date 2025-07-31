@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         
         const formattedData = participants.map((p, index) => {
             // Gunakan normalizedName yang sudah ada di DB untuk membuat slug
-            const schoolSlug = p.registration.school.normalizedName
+            const schoolSlug = p.registration.school.name
                 .toLowerCase()
                 .replace(/[^a-z0-9]/g, '-')
                 .replace(/-+/g, '-');

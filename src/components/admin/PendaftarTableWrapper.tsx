@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { FormattedRegistration } from "@/types/admin";
-import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, Receipt } from "lucide-react";
 import { SchoolCategory, PaymentStatus } from "@prisma/client";
 import { toast } from 'sonner';
 import { motion } from "framer-motion";
@@ -168,7 +168,9 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
             header: () => <div className="text-center">Dokumen</div>,
             enableHiding: false, // Memastikan kolom ini tidak bisa disembunyikan
             cell: ({ row }) => {
+                const { receiptPath } = row.original;
                 const { excelFilePath } = row.original;
+                
                 
                 // Jika tidak ada path file, tampilkan strip
                 if (!excelFilePath) {
@@ -210,6 +212,24 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
+                        
+
+                     {receiptPath && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button asChild variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-black hover:text-white">
+                                            <a href={receiptPath} target="_blank" rel="noopener noreferrer">
+                                                <Receipt className="h-4 w-4 text-pmi-red" />
+                                            </a>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent className=" p-1  text-white rounded-md font-sans font-semibold bg-black">
+                                        <p>Lihat/Unduh Kwitansi PDF</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                     </div>
                 );
             },
@@ -302,6 +322,7 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
                             </DropdownMenuItem>
                         }
                         {registration.manualProofPath && <DropdownMenuItem onSelect={() => handleViewProof(registration.manualProofPath!, registration.normalizedName)} className="text-white focus:bg-red-800 focus:text-white rounded-lg transition-colors duration-200">Lihat Bukti Bayar</DropdownMenuItem>}
+
                         <DropdownMenuSeparator className="bg-black"/>
                         <DropdownMenuItem
                             // Gunakan onSelect untuk integrasi terbaik dengan shadcn

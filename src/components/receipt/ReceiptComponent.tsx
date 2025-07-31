@@ -2,6 +2,7 @@
 
 import QRCodeComponent from './QRCodeComponent';
 import { type ReceiptData } from "@/types/receipt";
+import Image from "next/image"
 // Helper untuk format mata uang
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -38,7 +39,7 @@ export default function ReceiptComponent({ data, orderId }: { data: ReceiptData,
           <div className="relative z-10 flex justify-between items-center">
             <div className="flex items-center gap-4">
               <div className="bg-white p-1 rounded-md shadow-sm flex-shrink-0">
-    <img id="receipt-logo" src="/logo-pmi.png" alt="Logo PMI" width={72} height={72} />
+    <Image id="receipt-logo" src="/logo-pmi.png" alt="Logo PMI" width={72} height={72} />
 </div>
               <div className='text-left'>
                 <h1 className="text-3xl font-bold font-serif tracking-tight">KWITANSI</h1>

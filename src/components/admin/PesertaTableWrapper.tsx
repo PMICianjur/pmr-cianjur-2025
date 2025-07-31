@@ -186,39 +186,39 @@ export function PesertaTableWrapper() {
             </div>
         </div>
         
-        <div className="rounded-md border bg-white">
-            <Table>
-                <TableHeader>
-                    {table.getHeaderGroups().map(headerGroup => (
-                        <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map(header => (
-                                <TableHead key={header.id}>
-                                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                </TableHead>
+               <div  className="rounded-lg border border-black">
+                    <Table>
+                        <TableHeader className="bg-pmi-red border  border-black">
+                            {table.getHeaderGroups().map(headerGroup => (
+                                <TableRow key={headerGroup.id} className="border border-black">
+                                    {headerGroup.headers.map(header => (
+                                        <TableHead key={header.id} className="border text-center font-bold text-white border-black">
+                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
                             ))}
-                        </TableRow>
-                    ))}
-                </TableHeader>
-                <TableBody>
-                    {isLoading ? (
-                        <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Memuat data peserta...</TableCell></TableRow>
-                    ) : table.getRowModel().rows?.length ? (
-                        table.getRowModel().rows.map(row => (
-                            <TableRow key={row.original.no}>
-                                {row.getVisibleCells().map(cell => 
-                                    <TableCell key={cell.id}>
-                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                    </TableCell>
-                                )}
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada data peserta yang cocok.</TableCell></TableRow>
-                    )}
-                </TableBody>
-            </Table>
-        </div>
-
+                        </TableHeader>
+                        <TableBody className="border border-black">
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Memuat data Peserta..</TableCell></TableRow>
+                            ) : table.getRowModel().rows?.length ? (
+                                table.getRowModel().rows.map(row => (
+                                    <TableRow key={row.original.no} className="border-black border">
+                                        {row.getVisibleCells().map(cell => 
+                                            <TableCell key={cell.id} className="border-black border">
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada data Peserta yang cocok.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                
         {/* Paginasi Lengkap */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4">
             <div className="flex-1 text-sm text-muted-foreground">

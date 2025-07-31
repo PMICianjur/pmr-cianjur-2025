@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import ReceiptComponent from "@/components/receipt/ReceiptComponent";
 import DownloadReceiptButton from "@/components/receipt/DownloadReceiptButton";
 import { type ReceiptData } from "@/types/receipt";
+import Link from "next/link"
 
 // Tipe props yang diterima dari Server Component
 interface SuccessPageClientProps {
@@ -40,7 +41,7 @@ export function SuccessPageClient({ receiptData, orderId, isFromManualPayment }:
                  <p className="text-sm text-red-500">Gagal memuat data kwitansi.</p>
             )}
             <Button asChild variant="outline">
-                <a href="/">Kembali ke Beranda</a>
+                <Link href="/">Kembali ke Beranda</Link>
             </Button>
           </div>
         </CardContent>

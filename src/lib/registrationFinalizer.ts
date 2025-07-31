@@ -3,6 +3,7 @@ import { normalizeSchoolName } from "@/lib/normalization";
 import { promises as fs } from 'fs';
 import path from 'path';
 import { Gender } from '@prisma/client';
+import { generateAndSaveReceipt } from './receiptGenerator';
 
 // Impor semua tipe data dari file terpusat
 import { 
@@ -202,9 +203,11 @@ export async function finalizeRegistration(
           console.log(`No photos folder found for tempRegId ${tempRegId}, skipping.`);
       }
       
-      // Hapus folder temporer yang asli
+      // Hapus folder temorer yang asli
       await fs.rm(tempDir, { recursive: true, force: true });
       console.log(`Temporary directory ${tempRegId} has been deleted.`);
+      
+
 
     } catch (error: unknown) { // Gunakan 'unknown'
         let errorMessage = "An unknown error occurred while processing files.";
@@ -212,6 +215,24 @@ export async function finalizeRegistration(
             errorMessage = error.message;
         }
         console.error(`Error processing files for tempRegId ${tempRegId} after DB transaction:`, errorMessage);
+    }
+    
+   try {
+        // --- BUAT DAN SIMPAN KWITANSI PDF ---
+        console.log("Starting receipt generation process...");
+        const receiptPath = await generateAndSaveReceipt(orderId, schoolSlug, normalizedName);
+
+        // --- UPDATE DATABASE DENGAN PATH KWITANSI ---
+        await prisma.payment.update({
+            where: { id: orderId },
+            data: { receiptPath: receiptPath }
+        });
+        console.log(`Payment record for ${orderId} updated with receipt path.`);
+
+    } catch (receiptError: any) {
+        console.error(`!!! CRITICAL: Failed to generate or save receipt for order ID ${orderId}:`, receiptError.message);
+        // Di sini kita hanya log errornya, tidak menghentikan proses.
+        // Admin masih bisa men-generate ulang kwitansi nanti.
     }
   }
 }

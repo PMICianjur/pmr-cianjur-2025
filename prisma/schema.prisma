@@ -1,14 +1,17 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+        
 
 // ===================================
 // TEMPORARY DATA (BEFORE PAYMENT)
@@ -103,6 +106,7 @@ model Payment {
   midtransToken     String?       @db.Text
   midtransResponse  Json?
   manualProofPath   String?
+  receiptPath       String?
   confirmedAt       DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt

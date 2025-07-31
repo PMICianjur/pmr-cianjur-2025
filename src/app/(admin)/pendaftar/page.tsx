@@ -22,6 +22,7 @@ async function getPendaftar(): Promise<FormattedRegistration[]> {
                     status: true,
                     method: true,
                     manualProofPath: true,
+                    receiptPath: true,
                 }
             },
         },
@@ -44,6 +45,7 @@ async function getPendaftar(): Promise<FormattedRegistration[]> {
         participantCount: reg.participantCount,
         companionCount: reg.companionCount,
         createdAt: reg.createdAt.toISOString(),
+        receiptPath: reg.payment?.receiptPath,
         paymentId: reg.payment?.id,
         manualProofPath: reg.payment?.manualProofPath,
         excelFilePath: reg.excelFilePath,

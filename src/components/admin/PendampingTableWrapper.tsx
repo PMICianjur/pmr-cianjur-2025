@@ -166,27 +166,27 @@ export function PendampingTableWrapper() {
             </div>
         </div>
         
-        <div className="rounded-md border bg-white">
+        <div  className="rounded-lg border border-black">
             <Table>
-                <TableHeader>
+                <TableHeader className="bg-pmi-red border  border-black">
                     {table.getHeaderGroups().map(headerGroup => (
-                        <TableRow key={headerGroup.id}>
+                        <TableRow key={headerGroup.id} className="border border-black">
                             {headerGroup.headers.map(header => (
-                                <TableHead key={header.id}>
+                                <TableHead key={header.id} className="border text-center font-bold text-white border-black">
                                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                 </TableHead>
                             ))}
                         </TableRow>
                     ))}
                 </TableHeader>
-                <TableBody>
+                <TableBody className="border border-black">
                     {isLoading ? (
                         <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Memuat data Pendamping...</TableCell></TableRow>
                     ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map(row => (
-                            <TableRow key={row.original.no}>
+                            <TableRow key={row.original.no} className="border-black border">
                                 {row.getVisibleCells().map(cell => 
-                                    <TableCell key={cell.id}>
+                                    <TableCell key={cell.id} className="border-black border">
                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                     </TableCell>
                                 )}
