@@ -2,7 +2,7 @@ import prisma from "@/lib/prisma";
 import { normalizeSchoolName } from "@/lib/normalization";
 import { promises as fs } from 'fs';
 import path from 'path';
-import { Gender } from '@prisma/client';
+import { Prisma, Gender } from '@prisma/client';
 import { generateAndSaveReceipt } from './receiptGenerator';
 
 // Impor semua tipe data dari file terpusat
@@ -12,6 +12,8 @@ import {
     type ParticipantExcelRow,
     type CompanionExcelRow
 } from '@/types/registration';
+
+
 
 /**
  * Fungsi terpusat untuk memfinalisasi pendaftaran.
@@ -38,7 +40,7 @@ export async function finalizeRegistration(
   let newRegistrationId: number | null = null;
   
   // Lakukan semua operasi database dalam satu transaksi untuk memastikan integritas data
-  await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Buat data Sekolah
     const newSchool = await tx.school.create({
       data: {
@@ -229,11 +231,14 @@ export async function finalizeRegistration(
         });
         console.log(`Payment record for ${orderId} updated with receipt path.`);
 
-    } catch (receiptError: any) {
-        console.error(`!!! CRITICAL: Failed to generate or save receipt for order ID ${orderId}:`, receiptError.message);
-        // Di sini kita hanya log errornya, tidak menghentikan proses.
-        // Admin masih bisa men-generate ulang kwitansi nanti.
+    } catch (error: unknown) { // Gunakan tipe `unknown`
+    let errorMessage = "Terjadi kesalahan yang tidak diketahui saat membuat kwitansi.";
+    // Periksa apakah error adalah instance dari Error
+    if (error instanceof Error) {
+        errorMessage = error.message;
     }
+    console.error(`!!! CRITICAL: Failed to generate or save receipt for order ID ${orderId}:`, errorMessage);
+}
   }
 }
 
