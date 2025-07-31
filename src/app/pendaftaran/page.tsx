@@ -44,41 +44,23 @@ export default function PendaftaranPage() {
     // Ia memastikan pengguna tidak bisa "maju" ke step yang prasyaratnya belum terpenuhi.
 
     // 1. Harus punya data sekolah untuk melewati step 1
-    if (step > 1 && !schoolData) {
-      console.log("GUARD: No schoolData, redirecting to step 1.");
-      goToStep(1);
-      return; // Hentikan pengecekan lebih lanjut
-    }
-
-    // 2. Harus punya data excel untuk melewati step 2
-    if (step > 2 && !excelData) {
-      console.log("GUARD: No excelData, redirecting to step 2.");
-      goToStep(2);
-      return;
-    }
-    
-    // 3. (Step 3 adalah verifikasi, tidak ada data baru yang dihasilkan, jadi tidak perlu guard untuk step > 3)
-    
-    // 4. Harus punya pilihan tenda untuk melewati step 4
-    if (step > 4 && !tentChoice) {
-      console.log("GUARD: No tentChoice, redirecting to step 4.");
-      goToStep(4);
-      return;
-    }
-    
-    // 5. Logika guard untuk kavling (sudah benar dari sebelumnya)
-    if (step > 5) {
+    if (step === 2 && !schoolData) {
+        goToStep(1);
+    } else if (step === 3 && !excelData) {
+        goToStep(2);
+    } else if (step === 4 && !tentChoice) {
+        goToStep(3); // Kembali ke verifikasi
+    } else if (step === 5 && (!tentChoice || tentChoice.type !== 'sewa_panitia')) {
+        goToStep(4);
+    } else if (step === 6) {
         const isSewaAndHasKavling = tentChoice?.type === 'sewa_panitia' && kavling !== null;
         const isBawaSendiri = tentChoice?.type === 'bawa_sendiri';
-
         if (!(isSewaAndHasKavling || isBawaSendiri)) {
-            console.log("GUARD: Invalid kavling state for step > 5, redirecting to step 5.");
-            goToStep(5);
-            return;
+            goToStep(5); // Kembali ke kavling jika sewa tapi belum pilih
         }
     }
-
-  }, [step, schoolData, excelData, tentChoice, kavling, goToStep]);
+    // Lanjutkan pola ini untuk step 7
+}, [step, schoolData, excelData, tentChoice, kavling, goToStep]);
 
 
   const renderStep = () => {
