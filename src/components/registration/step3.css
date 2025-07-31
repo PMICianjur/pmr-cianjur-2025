@@ -1,0 +1,17 @@
+/* src/components/registration/step3.css */
+
+/* Target komponen FilePond di dalam .participant-filepond */
+.participant-filepond .filepond--root {
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 0;
+}
+
+.participant-filepond .filepond--panel-root {
+    background-color: #f9fafb; /* bg-gray-50 */
+    border-radius: 0.5rem; /* rounded-lg */
+    border: 2px dashed #d1d5db; /* border-gray-300 */
+}
+
+.participant-filepond .filepond--drop-label {
+    color: #6b7280; /* text-gray-500 */
+}

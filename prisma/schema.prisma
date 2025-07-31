@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================
+// TEMPORARY DATA (BEFORE PAYMENT)
+// ===================================
+
+model TemporaryRegistration {
+  id        String   @id @default(uuid())
+  step      Int      @default(1)
+  data      Json // Store all form data temporarily
+  status    String   @default("PENDING") // PENDING, PROCESSING, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================================
+// PERMANENT DATA (AFTER PAYMENT)
+// ===================================
+
+model School {
+  id                Int            @id @default(autoincrement())
+  name              String         @unique
+  normalizedName    String         @unique
+  coachName         String
+  whatsappNumber    String
+  category          SchoolCategory
+registration      Registration?  // <-- Sederhanakan relasi di sisi ini
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model Participant {
+  id              Int          @id @default(autoincrement())
+  fullName        String
+  birthPlaceDate  String
+  address         String
+  religion        String
+  bloodType       String?
+  entryYear       Int
+  phoneNumber     String?
+  gender          Gender
+  photoFilename   String?
+  registrationId  Int
+  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Companion {
+  id              Int          @id @default(autoincrement())
+  fullName        String
+  birthPlaceDate  String
+  address         String
+  religion        String
+  bloodType       String?
+  entryYear       Int
+  phoneNumber     String?
+  gender          Gender
+  registrationId  Int
+  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Registration {
+  id                  Int           @id @default(autoincrement())
+  schoolId            Int           @unique
+  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tentType            TentType
+  tentCapacity        Int?
+  kavlingNumber       Int?
+  kavlingBooking      KavlingBooking?
+  participantCount    Int
+  companionCount      Int
+  excelFilePath       String?
+  baseFee             Float
+  tentFee             Float
+  totalFee            Float
+  payment             Payment?
+  participants        Participant[]
+  companions          Companion[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model Payment {
+  id                String        @id // Custom Order ID
+  registrationId    Int           @unique
+  registration      Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amount            Float
+  midtransToken     String?       @db.Text
+  midtransResponse  Json?
+  manualProofPath   String?
+  confirmedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model KavlingBooking {
+  id            Int      @id @default(autoincrement())
+  kavlingNumber Int
+  capacity      Int
+  category      SchoolCategory // <-- TAMBAHKAN KOLOM INI
+  isBooked      Boolean  @default(false)
+  registrationId Int?    @unique
+  registration   Registration?  @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  @@unique([kavlingNumber, capacity, category])
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String   // Akan menyimpan hash password, bukan password asli
+  name      String
+  role      AdminRole @default(OPERATOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  loginHistory LoginHistory[]
+}
+
+model LoginHistory {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  loginAt   DateTime @default(now())
+  ipAddress String?  // Opsional, untuk menyimpan IP address
+  userAgent String?  // Opsional, untuk menyimpan info browser
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+enum AdminRole {
+  KESEKRETARIATAN1 // Bisa melakukan segalanya
+  OPERATOR   // Hanya bisa melihat data atau mengkonfirmasi pembayaran
+}
+
+// Enums
+enum SchoolCategory {
+  WIRA  // SMA/SMK/MA
+  MADYA // SMP/MTS
+}
+
+enum Gender {
+  LAKI_LAKI
+  PEREMPUAN
+}
+
+enum TentType {
+  BAWA_SENDIRI
+  SEWA_PANITIA
+}
+
+enum PaymentMethod {
+  MANUAL
+  MIDTRANS
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+  WAITING_CONFIRMATION // For manual payment
+}
