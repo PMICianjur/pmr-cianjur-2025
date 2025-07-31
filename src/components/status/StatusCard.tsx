@@ -37,7 +37,7 @@ export function StatusCard({ statusConfig, orderId, receiptData }: StatusCardPro
                         <DownloadReceiptButton data={receiptData} orderId={orderId} />
                     )}
                     <Button asChild variant="outline">
-                        <Link href="/">Kembali ke Beranda</Link>
+                        <Link href="/">Kembali</Link>
                     </Button>
                 </div>
             </CardContent>
