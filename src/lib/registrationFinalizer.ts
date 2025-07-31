@@ -5,19 +5,72 @@ import path from 'path';
 import { Prisma, Gender } from '@prisma/client';
 import { generateAndSaveReceipt } from './receiptGenerator';
 
-// Impor semua tipe data dari file terpusat
-import { 
-    type RegistrationData, 
-    type PaymentDetails,
-    type ParticipantExcelRow,
-    type CompanionExcelRow
-} from '@/types/registration';
+// Definisikan tipe data yang diterima agar lebih aman
+// Pastikan tipe ini konsisten di seluruh aplikasi
+interface SchoolData {
+    schoolName: string;
+    coachName: string;
+    whatsappNumber: string;
+    category: 'WIRA' | 'MADYA';
+}
 
+interface ParticipantData {
+    "NO": number;
+    "NAMA LENGKAP": string;
+    "TEMPAT, TANGGAL LAHIR": string;
+    "ALAMAT": string; // Sesuai kode Anda, jika schema berbeda, sesuaikan
+    "AGAMA": string;
+    "GOL DARAH": string;
+    "TAHUN MASUK": number;
+    "NO HP": string | number;
+    "GENDER": string; // Sesuai kode Anda, bukan GENDER (L/P)
+    photoUrl?: string | null;
+}
 
+interface CompanionData {
+    "NO": number;
+    "NAMA LENGKAP": string;
+    "TEMPAT, TANGGAL LAHIR": string;
+    "ALAMAT": string; // Sesuai kode Anda
+    "AGAMA": string;
+    "GOL DARAH": string;
+    "TAHUN MASUK": number;
+    "NO HP": string | number;
+    "GENDER (L/P)": string; // Sesuai kode Anda
+}
+
+interface RegistrationData {
+  tempRegId?: string;
+  schoolData: SchoolData;
+  excelData: {
+    participants: ParticipantData[];
+    companions: CompanionData[];
+  };
+  tentChoice: {
+    type: 'bawa_sendiri' | 'sewa_panitia';
+    capacity: number;
+    cost: number;
+  };
+  kavling: {
+    number: number;
+    capacity: number;
+  } | null;
+  costs: {
+    participants: number;
+    companions: number;
+    total: number;
+  };
+}
+
+interface PaymentDetails {
+  method: 'MANUAL' | 'MIDTRANS';
+  status: 'SUCCESS' | 'WAITING_CONFIRMATION';
+  manualProofPath?: string;
+  midtransResponse?: any;
+}
 
 /**
  * Fungsi terpusat untuk memfinalisasi pendaftaran.
- * Memindahkan data dari state sementara ke tabel database permanen dan mengatur file.
  */
 export async function finalizeRegistration(
   data: RegistrationData,
@@ -25,10 +78,9 @@ export async function finalizeRegistration(
   paymentDetails: PaymentDetails
 ) {
   const { schoolData, excelData, tentChoice, kavling, costs, tempRegId } = data;
-
-  // Validasi data penting sebelum memulai transaksi
+  
   if (!schoolData || !excelData || !tentChoice || !costs) {
-    throw new Error(`Data pendaftaran tidak lengkap untuk Order ID ${orderId}. Finalisasi dibatalkan.`);
+    throw new Error(`Data pendaftaran tidak lengkap untuk Order ID ${orderId}.`);
   }
   if (tentChoice.type === 'sewa_panitia' && !kavling) {
      throw new Error(`Data kavling tidak ditemukan untuk pendaftar sewa tenda. Order ID ${orderId}.`);
@@ -39,20 +91,9 @@ export async function finalizeRegistration(
   
   let newRegistrationId: number | null = null;
   
-  // Lakukan semua operasi database dalam satu transaksi untuk memastikan integritas data
-await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // 1. Buat data Sekolah
-    const newSchool = await tx.school.create({
-      data: {
-        name: schoolData.schoolName,
-        normalizedName: normalizedName,
-        coachName: schoolData.coachName,
-        whatsappNumber: schoolData.whatsappNumber,
-        category: schoolData.category,
-      }
-    });
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newSchool = await tx.school.create({ data: { name: schoolData.schoolName, normalizedName, coachName: schoolData.coachName, whatsappNumber: schoolData.whatsappNumber, category: schoolData.category } });
 
-    // 2. Buat data Registrasi
     const newRegistration = await tx.registration.create({
       data: {
         schoolId: newSchool.id,
@@ -64,26 +105,23 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         baseFee: costs.participants + costs.companions,
         tentFee: tentChoice.cost,
         totalFee: costs.total,
-        // excelFilePath akan di-update nanti setelah file di-rename
       }
     });
     
     newRegistrationId = newRegistration.id;
 
-    // 3. Buat data Peserta
     if (excelData.participants && excelData.participants.length > 0) {
       const participantCreateData = excelData.participants
-        .filter(p => p && p["NAMA LENGKAP"] && p["GENDER (L/P)"]) // Filter baris yang tidak valid
-        .map((p: ParticipantExcelRow) => {
-          const genderString = String(p["GENDER (L/P)"] || '').trim().toUpperCase();
+        .filter(p => p && p["NAMA LENGKAP"] && p["GENDER"])
+        .map((p: ParticipantData) => {
+          const genderString = String(p["GENDER"] || '').trim().toUpperCase();
           const finalGender: Gender = genderString.startsWith('L') ? 'LAKI_LAKI' : 'PEREMPUAN';
           const phoneNumberValue = p["NO HP"] ? String(p["NO HP"]) : null;
           const photoFilename = p.photoUrl ? path.basename(p.photoUrl) : null;
-          
           return {
             fullName: String(p["NAMA LENGKAP"]),
             birthPlaceDate: String(p["TEMPAT, TANGGAL LAHIR"] || 'N/A'),
-            address: String(p["ALAMAT"] || 'N/A'),
+            address: String(p["ALAMAT"] || 'N/A'), // Menggunakan ALAMAT sesuai Excel
             religion: String(p["AGAMA"] || 'N/A'),
             bloodType: String(p["GOL DARAH"] || '-').replace('-', '').trim() || null,
             entryYear: Number(p["TAHUN MASUK"]) || new Date().getFullYear(),
@@ -94,26 +132,21 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           };
         });
       if (participantCreateData.length > 0) {
-          await tx.participant.createMany({ 
-              data: participantCreateData,
-              skipDuplicates: true 
-          });
+          await tx.participant.createMany({ data: participantCreateData, skipDuplicates: true });
       }
     }
 
-    // 4. Buat data Pendamping
     if (excelData.companions && excelData.companions.length > 0) {
        const companionCreateData = excelData.companions
-        .filter(c => c && c["NAMA LENGKAP"] && c["GENDER (L/P)"]) // Filter baris yang tidak valid
-        .map((c: CompanionExcelRow) => {
+        .filter(c => c && c["NAMA LENGKAP"] && c["GENDER (L/P)"])
+        .map((c: CompanionData) => {
           const genderString = String(c["GENDER (L/P)"] || '').trim().toUpperCase();
           const finalGender: Gender = genderString.startsWith('L') ? 'LAKI_LAKI' : 'PEREMPUAN';
           const phoneNumberValue = c["NO HP"] ? String(c["NO HP"]) : null;
-          
           return {
             fullName: String(c["NAMA LENGKAP"]),
             birthPlaceDate: String(c["TEMPAT, TANGGAL LAHIR"] || 'N/A'),
-            address: String(c["ALAMAT"] || 'N/A'),
+            address: String(c["ALAMAT"] || 'N/A'), // Menggunakan ALAMAT sesuai Excel
             religion: String(c["AGAMA"] || 'N/A'),
             bloodType: String(c["GOL DARAH"] || '-').replace('-', '').trim() || null,
             entryYear: Number(c["TAHUN MASUK"]) || new Date().getFullYear(),
@@ -123,14 +156,10 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           };
         });
       if (companionCreateData.length > 0) {
-          await tx.companion.createMany({ 
-              data: companionCreateData,
-              skipDuplicates: true
-          });
+          await tx.companion.createMany({ data: companionCreateData, skipDuplicates: true });
       }
     }
 
-    // 5. Buat data Pembayaran
     await tx.payment.create({
       data: {
         id: orderId,
@@ -139,11 +168,11 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         method: paymentDetails.method,
         status: paymentDetails.status,
         manualProofPath: paymentDetails.manualProofPath,
+        midtransResponse: paymentDetails.midtransResponse,
         confirmedAt: paymentDetails.status === 'SUCCESS' ? new Date() : null,
       }
     });
 
-    // 6. Tandai Kavling sudah dipesan (jika ada)
     if (kavling) {
       await tx.kavlingBooking.update({
         where: {
@@ -153,21 +182,16 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             category: schoolData.category,
           },
         },
-        data: { 
-          isBooked: true, 
-          registrationId: newRegistration.id 
-        }
+        data: { isBooked: true, registrationId: newRegistration.id }
       });
     }
   });
 
-  // Setelah transaksi database berhasil, proses file
+  // Proses file setelah transaksi DB berhasil
   if (newRegistrationId && tempRegId) {
     const newExcelFilename = `${newRegistrationId}-${schoolSlug}.xlsx`;
-    
     const tempDir = path.join(process.cwd(), 'public', 'uploads', 'temp', tempRegId);
     const permDir = path.join(process.cwd(), 'public', 'uploads', 'permanent', schoolSlug);
-    
     const tempExcelPath = path.join(tempDir, 'data-peserta.xlsx');
     const permExcelPath = path.join(permDir, newExcelFilename);
     const publicExcelPath = `/uploads/permanent/${schoolSlug}/${newExcelFilename}`;
@@ -175,27 +199,15 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     try {
       await fs.access(tempDir);
       await fs.mkdir(permDir, { recursive: true });
-
-      // Pindahkan dan rename file Excel
       try {
         await fs.rename(tempExcelPath, permExcelPath);
         console.log(`Excel file renamed and moved to: ${permExcelPath}`);
-
-        // Update record Registration dengan path file Excel yang baru
-        await prisma.registration.update({
-            where: { id: newRegistrationId },
-            data: { excelFilePath: publicExcelPath }
-        });
+        await prisma.registration.update({ where: { id: newRegistrationId }, data: { excelFilePath: publicExcelPath } });
         console.log(`Registration record ${newRegistrationId} updated with Excel file path.`);
-      } catch (e: unknown) { // Gunakan 'unknown'
-        if (e instanceof Error) {
-            console.warn(`Could not rename Excel file for tempRegId ${tempRegId}:`, e.message);
-        } else {
-            console.warn(`Could not rename Excel file for tempRegId ${tempRegId}: An unknown error occurred.`);
-        }
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "An unknown error occurred.";
+        console.warn(`Could not rename Excel file for tempRegId ${tempRegId}:`, message);
       }
-
-      // Pindahkan folder foto
       const tempPhotosDir = path.join(tempDir, 'photos');
       const permPhotosDir = path.join(permDir, 'photos');
       try {
@@ -204,42 +216,21 @@ await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       } catch {
           console.log(`No photos folder found for tempRegId ${tempRegId}, skipping.`);
       }
-      
-      // Hapus folder temorer yang asli
       await fs.rm(tempDir, { recursive: true, force: true });
       console.log(`Temporary directory ${tempRegId} has been deleted.`);
-      
-
-
-    } catch (error: unknown) { // Gunakan 'unknown'
-        let errorMessage = "An unknown error occurred while processing files.";
-        if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-        console.error(`Error processing files for tempRegId ${tempRegId} after DB transaction:`, errorMessage);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error(`Error processing files for tempRegId ${tempRegId}:`, errorMessage);
     }
     
-   try {
-        // --- BUAT DAN SIMPAN KWITANSI PDF ---
+    try {
         console.log("Starting receipt generation process...");
         const receiptPath = await generateAndSaveReceipt(orderId, schoolSlug, normalizedName);
-
-        // --- UPDATE DATABASE DENGAN PATH KWITANSI ---
-        await prisma.payment.update({
-            where: { id: orderId },
-            data: { receiptPath: receiptPath }
-        });
+        await prisma.payment.update({ where: { id: orderId }, data: { receiptPath: receiptPath } });
         console.log(`Payment record for ${orderId} updated with receipt path.`);
-
-    } catch (error: unknown) { // Gunakan tipe `unknown`
-    let errorMessage = "Terjadi kesalahan yang tidak diketahui saat membuat kwitansi.";
-    // Periksa apakah error adalah instance dari Error
-    if (error instanceof Error) {
-        errorMessage = error.message;
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error(`!!! CRITICAL: Failed to generate receipt for order ID ${orderId}:`, errorMessage);
     }
-    console.error(`!!! CRITICAL: Failed to generate or save receipt for order ID ${orderId}:`, errorMessage);
-}
   }
 }
-
-export { RegistrationData };
