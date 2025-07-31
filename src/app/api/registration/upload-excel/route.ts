@@ -1,5 +1,3 @@
-// src/app/api/registration/upload-excel/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -7,32 +5,32 @@ import sharp from 'sharp';
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
 
-// Definisikan tipe data yang kita harapkan dari setiap baris di Excel
-// Pastikan ini cocok 100% dengan header di file Excel
+// Tipe data yang kita harapkan dari setiap baris di Excel
 interface ParticipantRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT": string;
+    "ALAMAT LENGKAP": string;
     "AGAMA": string;
-    "GOL DARAH": string;
+    "GOLONGAN DARAH": string;
     "TAHUN MASUK": number;
-    "NO HP": string | number;
-    "GENDER (L/P)": string;
+    "GENDER": string;
+    "NO HP"?: string | number;
 }
 
 interface CompanionRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT": string;
+    "ALAMAT LENGKAP": string;
     "AGAMA": string;
-    "GOL DARAH": string;
+    "GOLONGAN DARAH": string;
     "TAHUN MASUK": number;
-    "NO HP": string | number;
     "GENDER (L/P)": string;
+    "NO HP"?: string | number;
 }
 
+// Tipe data final yang akan kita kirim kembali ke frontend
 interface ProcessedParticipant extends ParticipantRow {
     photoUrl: string | null;
 }
@@ -69,32 +67,26 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer); 
         
-        const tempDir = path.join(process.cwd(), 'public', 'uploads', 'temp', tempRegId);
+        // Simpan file temporer ke disk
+        const tempDir = path.join('/tmp', tempRegId); // Gunakan /tmp untuk lingkungan serverless
         await fs.mkdir(tempDir, { recursive: true });
         const tempExcelPath = path.join(tempDir, 'data-peserta.xlsx');
-
-        try {
-            await fs.writeFile(tempExcelPath, fileBuffer);
-            console.log(`[API /upload-excel] SUCCESS: Temporary Excel file saved to: ${tempExcelPath}`);
-        } catch (writeError) {
-            console.error(`[API /upload-excel] FAILED to write temporary file:`, writeError);
-            throw new Error("Gagal menyimpan file temporer di server. Periksa izin folder.");
-        }
+        await fs.writeFile(tempExcelPath, fileBuffer);
 
         const workbook = new ExcelJS.Workbook();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await workbook.xlsx.load(fileBuffer as any);
 
         const processedParticipants: ProcessedParticipant[] = [];
-        const imageSavePromises: Promise<any>[] = [];
-        const photosDir = path.join(process.cwd(), 'public', 'uploads', 'temp', tempRegId, 'photos');
+        const imageSavePromises: Promise<unknown>[] = [];
+        const photosDir = path.join('/tmp', tempRegId, 'photos');
         await fs.mkdir(photosDir, { recursive: true });
 
         // --- PROSES DATA PESERTA ---
-        const participantsSheet = workbook.getWorksheet('Data Peserta'); // Pastikan nama sheet benar
+        const participantsSheet = workbook.getWorksheet('PESERTA');
         if (!participantsSheet) throw new Error("Sheet 'Data Peserta' tidak ditemukan.");
         
-        const participantHeaderRow = participantsSheet.getRow(3); // Asumsi header di baris 3
+        const participantHeaderRow = participantsSheet.getRow(6);
         if (!participantHeaderRow.hasValues) throw new Error("Header tidak ditemukan di baris ke-3.");
 
         let photoColumnIndex = -1;
@@ -114,9 +106,9 @@ export async function POST(req: NextRequest) {
         });
 
         participantsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber <= 3) return;
+            if (rowNumber <= 6) return;
 
-            const rawRowData: any = {};
+            const rawRowData: { [key: string]: string | number | null } = {};
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                 const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
                 if (header && header !== 'FOTO') {
@@ -128,29 +120,44 @@ export async function POST(req: NextRequest) {
             
             let photoUrl: string | null = null;
             const image = participantImageMap.get(rowNumber - 1);
+
             if (image && image.buffer) {
-                const personName = rawRowData["NAMA LENGKAP"];
+                const personName = String(rawRowData["NAMA LENGKAP"]);
                 const safeFilename = `peserta-${personName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}-${rawRowData["NO"]}.webp`;
                 const photoPath = path.join(photosDir, safeFilename);
                 const imageNodeBuffer = Buffer.from(image.buffer);
-                const savePromise = sharp(imageNodeBuffer as any).resize(300, 400, { fit: 'cover' }).webp({ quality: 80 }).toFile(photoPath);
+                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const savePromise = sharp(imageNodeBuffer as any)
+                    .resize(300, 400, { fit: 'cover' })
+                    .webp({ quality: 80 })
+                    .toFile(photoPath);
                 imageSavePromises.push(savePromise);
-                photoUrl = `/uploads/temp/${tempRegId}/photos/${safeFilename}`;
+                photoUrl = `/uploads/temp/${tempRegId}/photos/${safeFilename}`; // Ini hanya untuk referensi, file sebenarnya ada di /tmp
             }
             
-            // Map ke tipe yang kuat
-            processedParticipants.push({ ...rawRowData, photoUrl });
+            processedParticipants.push({
+                "NO": Number(rawRowData["NO"]) || 0,
+                "NAMA LENGKAP": String(rawRowData["NAMA LENGKAP"] || ""),
+                "TEMPAT, TANGGAL LAHIR": String(rawRowData["TEMPAT, TANGGAL LAHIR"] || ""),
+                "ALAMAT LENGKAP": String(rawRowData["ALAMAT LENGKAP"] || ""),
+                "AGAMA": String(rawRowData["AGAMA"] || ""),
+                "GOLONGAN DARAH": String(rawRowData["GOLONGAN DARAH"] || ""),
+                "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
+                "GENDER": String(rawRowData["GENDER"] || ""),
+                "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
+                photoUrl: photoUrl,
+            });
         });
 
         // --- PROSES DATA PENDAMPING ---
         let processedCompanions: CompanionRow[] = [];
-        const companionsSheet = workbook.getWorksheet('Data Pendamping'); // Pastikan nama sheet benar
+        const companionsSheet = workbook.getWorksheet('PENDAMPING');
         if (companionsSheet) {
-            const companionHeaderRow = companionsSheet.getRow(3); // Asumsi header juga di baris 3
+            const companionHeaderRow = companionsSheet.getRow(6);
             if (companionHeaderRow.hasValues) {
                 companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-                    if (rowNumber <= 3) return;
-                    const rawRowData: any = {};
+                    if (rowNumber <= 6) return;
+                    const rawRowData: { [key: string]: any } = {};
                     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                         const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
                         if (header) rawRowData[header] = getCellValue(cell);
@@ -177,9 +184,11 @@ export async function POST(req: NextRequest) {
             data: { participants: processedParticipants, companions: processedCompanions }
         }, { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
         let errorMessage = "Gagal memproses file.";
-        if (error instanceof Error) { errorMessage = error.message; }
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
         console.error("Excel processing error:", error);
         return NextResponse.json({ message: errorMessage }, { status: 500 });
     }

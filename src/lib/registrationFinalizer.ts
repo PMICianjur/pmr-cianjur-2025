@@ -66,7 +66,6 @@ interface PaymentDetails {
   method: 'MANUAL' | 'MIDTRANS';
   status: 'SUCCESS' | 'WAITING_CONFIRMATION';
   manualProofPath?: string;
-  midtransResponse?: any;
 }
 
 /**
@@ -168,7 +167,6 @@ export async function finalizeRegistration(
         method: paymentDetails.method,
         status: paymentDetails.status,
         manualProofPath: paymentDetails.manualProofPath,
-        midtransResponse: paymentDetails.midtransResponse,
         confirmedAt: paymentDetails.status === 'SUCCESS' ? new Date() : null,
       }
     });
