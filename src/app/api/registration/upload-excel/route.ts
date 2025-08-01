@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
 import { supabaseAdmin } from "@/lib/supabaseAdmin"; // Menggunakan Supabase Storage
 
-const BUCKET_NAME = 'pendaftaran-files'; // Pastikan nama ini sama dengan di Supabase
+const BUCKET_NAME = 'pendaftaranfiles'; // Pastikan nama ini sama dengan di Supabase
 
 // Tipe data yang diharapkan dari setiap baris di Excel
 // Pastikan ini cocok 100% dengan header di file Excel Anda
