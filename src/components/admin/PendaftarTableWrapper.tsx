@@ -67,8 +67,10 @@ interface ApiResponse {
 const paymentStatuses: PaymentStatus[] = ["SUCCESS", "WAITING_CONFIRMATION", "PENDING", "FAILED", "EXPIRED"];
 const categories: SchoolCategory[] = ["WIRA", "MADYA"];
 
-export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] }) {
+export function PendaftarTableWrapper() {
   const router = useRouter();
+  const [data, setData] = React.useState<FormattedRegistration[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -81,6 +83,29 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
   const [selectedProofUrl, setSelectedProofUrl] = React.useState<string | null>(null);
   const [selectedSchoolName, setSelectedSchoolName] = React.useState<string>("");
 
+ React.useEffect(() => {
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            // Kita tidak perlu lagi API terpisah, kita bisa fetch langsung dari Server Component
+            // Namun, untuk filter dinamis, API terpisah lebih baik. Mari kita asumsikan API-nya ada.
+            // Jika Anda tidak membuat API, Anda perlu meneruskan data sebagai prop.
+            // Karena kita ingin filter dinamis, kita akan buat API-nya.
+            
+            // NOTE: Anda perlu membuat API Route di /api/admin/registrations
+            const response = await fetch('/api/admin/registrations');
+            if(!response.ok) throw new Error("Gagal mengambil data pendaftar");
+            const fetchedData = await response.json();
+            setData(fetchedData);
+        } catch (error: any) {
+            toast.error("Gagal Memuat Data", { description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    fetchData();
+  }, []);
+
   const handleViewDetail = (id: number) => {
     setSelectedRegistrationId(id);
     setIsDetailModalOpen(true);
@@ -91,6 +116,8 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
     setSelectedSchoolName(schoolName);
     setIsProofModalOpen(true);
   };
+
+
 
   
 
@@ -384,14 +411,14 @@ export function PendaftarTableWrapper({ data }: { data: FormattedRegistration[] 
       toast.success("File Excel berhasil diunduh!");
   };
 
-  const activeFilterCount = columnFilters.filter(f => f.id !== 'normalizedName' && f.value).length;
+        const activeFilterCount = columnFilters.filter(f => f.id !== 'normalizedName').length; 
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex flex-col gap-4">
+     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex flex-col gap-4">
         
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <Input
-              placeholder="Cari berdasarkan nama sekolah..."
+              placeholder="Cari sekolah..."
               value={(table.getColumn("normalizedName")?.getFilterValue() as string) ?? ""}
               onChange={(event) => table.getColumn("normalizedName")?.setFilterValue(event.target.value)}
               className="max-w-xs w-full bg-transparent border-neutral-700 focus:ring-pmi-red"

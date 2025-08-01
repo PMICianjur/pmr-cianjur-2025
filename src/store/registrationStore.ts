@@ -22,9 +22,6 @@ interface RegistrationState {
   tempRegId: string | null;
   step: number;
   schoolData: SchoolData | null;
-  visualVerification: {
-    photoUrl: ParticipantExcelRow
-  } | null;
   excelData: {
     participants: ProcessedParticipant[];
     companions: CompanionExcelRow[];
@@ -71,7 +68,6 @@ const initialState: RegistrationState = {
   step: 1,
   schoolData: null,
   excelData: null,
-  visualVerification: null,
   tentChoice: null,
   kavling: null,
   costs: {

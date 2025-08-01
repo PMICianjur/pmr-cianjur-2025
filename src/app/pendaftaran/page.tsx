@@ -45,7 +45,6 @@ export default function PendaftaranPage() {
     step,
     schoolData,
     excelData,
-    visualVerification,
     tentChoice,
     kavling,
     goToStep,
@@ -70,13 +69,6 @@ export default function PendaftaranPage() {
       return goToStep(2);
     }
     console.log("✅ PASSED: Prasyarat Step 2 (excelData) OK.");
-
-    if (step > 3 && !visualVerification) {
-      console.log("❌ FAILED: Prasyarat Step 3 (Visual Verification) tidak ada.");
-      console.groupEnd();
-      return goToStep(4);
-    }
-    console.log("✅ PASSED: Prasyarat Step 3 (excelData) OK.");
     
     if (step > 4 && !tentChoice) {
       console.log("❌ FAILED: Prasyarat Step 4 (tentChoice) tidak ada.");
