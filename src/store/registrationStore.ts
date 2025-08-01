@@ -8,6 +8,7 @@ import { BIAYA_PESERTA, BIAYA_PENDAMPING } from '@/config/fees';
 import {
     type ProcessedParticipant,
     type CompanionExcelRow,
+    type ParticipantExcelRow,
     type SchoolData,
 } from '@/types/registration';
 
@@ -21,6 +22,9 @@ interface RegistrationState {
   tempRegId: string | null;
   step: number;
   schoolData: SchoolData | null;
+  visualVerification: {
+    photoUrl: ParticipantExcelRow
+  } | null;
   excelData: {
     participants: ProcessedParticipant[];
     companions: CompanionExcelRow[];
@@ -67,6 +71,7 @@ const initialState: RegistrationState = {
   step: 1,
   schoolData: null,
   excelData: null,
+  visualVerification: null,
   tentChoice: null,
   kavling: null,
   costs: {
