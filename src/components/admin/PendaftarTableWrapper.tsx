@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { FormattedRegistration } from "@/types/admin";
-import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, Receipt } from "lucide-react";
+import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, Receipt, Loader2 } from "lucide-react";
 import { SchoolCategory, PaymentStatus } from "@prisma/client";
 import { toast } from 'sonner';
 import { motion } from "framer-motion";
@@ -495,19 +495,35 @@ export function PendaftarTableWrapper() {
                         </TableRow>
                     ))}
                 </TableHeader>
-                <TableBody>
-                    {table.getRowModel().rows?.length ? (
-                        table.getRowModel().rows.map(row => (
-                            <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="border-black ">
-                                {row.getVisibleCells().map(cell => (
-                                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                                ))}
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada data pendaftar yang cocok.</TableCell></TableRow>
-                    )}
-                </TableBody>
+<TableBody>
+    {isLoading ? (
+        // Tampilkan ini saat data sedang di-fetch
+        <TableRow>
+            <TableCell colSpan={columns.length} className="h-24 text-center">
+                <div className="flex justify-center items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Memuat data pendaftar...</span>
+                </div>
+            </TableCell>
+        </TableRow>
+    ) : table.getRowModel().rows?.length ? (
+        // Tampilkan data jika sudah ada
+        table.getRowModel().rows.map(row => (
+            <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="border-neutral-800 hover:bg-neutral-800/50">
+                {row.getVisibleCells().map(cell => (
+                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                ))}
+            </TableRow>
+        ))
+    ) : (
+        // Tampilkan ini jika fetch selesai tapi tidak ada data
+        <TableRow>
+            <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                Tidak ada data pendaftar ditemukan.
+            </TableCell>
+        </TableRow>
+    )}
+</TableBody>
             </Table>
         </div>
 
