@@ -97,12 +97,14 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        const participantPromises = participantsSheet.getRows(4, participantsSheet.rowCount - 3)!.map(async (row) => {
-            const rawRowData: { [key: string]: any } = {};
-            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
-                if (header) rawRowData[header] = getCellValue(cell);
-            });
+const participantPromises = participantsSheet.getRows(4, participantsSheet.rowCount - 3)!.map(async (row) => {
+    const rawRowData: { [key: string]: ExcelJS.CellValue } = {}; // <-- UBAH DI SINI
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
+        if (header) {
+            rawRowData[header] = cell.value; // `cell.value` memiliki tipe `CellValue`
+        }
+    });
             
             if (!rawRowData["NAMA LENGKAP"]) return null;
             
