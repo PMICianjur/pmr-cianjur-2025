@@ -54,48 +54,51 @@ export default function PendaftaranPage() {
 
   // --- useEffect "Guard" dengan Pola Early Return ---
   useEffect(() => {
-    // Penjaga ini memastikan pengguna tidak bisa berada di step
-    // yang prasyaratnya belum terpenuhi. Ia akan selalu
-    // "menendang" pengguna kembali ke langkah terakhir yang valid.
-    
-    // Untuk bisa ke step > 1, HARUS ada schoolData.
+    console.group(`--- GUARD CHECK (Current Step: ${step}) ---`);
+
     if (step > 1 && !schoolData) {
-      console.log("GUARD: Prasyarat Step 1 (schoolData) tidak terpenuhi. Kembali ke Step 1.");
+      console.log("❌ FAILED: Prasyarat Step 1 (schoolData) tidak ada.");
+      console.groupEnd();
       return goToStep(1);
     }
+    console.log("✅ PASSED: Prasyarat Step 1 (schoolData) OK.");
 
-    // Untuk bisa ke step > 2, HARUS ada excelData.
     if (step > 2 && !excelData) {
-      console.log("GUARD: Prasyarat Step 2 (excelData) tidak terpenuhi. Kembali ke Step 2.");
+      console.log("❌ FAILED: Prasyarat Step 2 (excelData) tidak ada.");
+      console.groupEnd();
       return goToStep(2);
     }
-
-    // (Step 3 adalah verifikasi, tidak menghasilkan data baru, jadi tidak perlu guard untuk step > 3)
-
-    // Untuk bisa ke step > 4, HARUS ada tentChoice.
+    console.log("✅ PASSED: Prasyarat Step 2 (excelData) OK.");
+    
     if (step > 4 && !tentChoice) {
-      console.log("GUARD: Prasyarat Step 4 (tentChoice) tidak terpenuhi. Kembali ke Step 4.");
+      console.log("❌ FAILED: Prasyarat Step 4 (tentChoice) tidak ada.");
+      console.groupEnd();
       return goToStep(4);
     }
-    
-    // Untuk bisa ke step > 5, HARUS sewa tenda.
-    // Jika pengguna mencoba akses step 5 tapi bawa tenda sendiri, tendang ke step 4.
+    console.log("✅ PASSED: Prasyarat Step 4 (tentChoice) OK.");
+
     if (step === 5 && tentChoice?.type === 'bawa_sendiri') {
-      console.log("GUARD: Pengguna 'bawa_sendiri' tidak bisa akses Step 5. Kembali ke Step 4.");
+      console.log("🔀 REDIRECT: Pengguna 'bawa_sendiri' tidak bisa akses Step 5. Kembali ke Step 4.");
+      console.groupEnd();
       return goToStep(4);
     }
-    
-    // Untuk bisa ke step > 6, HARUS memenuhi kondisi kavling atau bawa sendiri.
+    console.log("✅ PASSED: Guard 'bawa_sendiri' untuk Step 5 OK.");
+
     if (step > 5) {
         const isSewaAndHasKavling = tentChoice?.type === 'sewa_panitia' && kavling !== null;
         const isBawaSendiri = tentChoice?.type === 'bawa_sendiri';
         if (!(isSewaAndHasKavling || isBawaSendiri)) {
-            console.log("GUARD: Prasyarat Step 5 (kavling) tidak terpenuhi. Kembali ke Step 5.");
+            console.log("❌ FAILED: Prasyarat Step 5 (kavling) tidak terpenuhi.");
+            console.groupEnd();
             return goToStep(5);
         }
     }
+    console.log("✅ PASSED: Prasyarat Step 5 (kavling) OK.");
 
-  }, [step, schoolData, excelData, tentChoice, kavling, goToStep]);
+    console.log("--- GUARD CHECK FINISHED: No redirect needed. ---");
+    console.groupEnd();
+
+}, [step, schoolData, excelData, tentChoice, kavling, goToStep]);
 
 
   const renderStep = () => {
