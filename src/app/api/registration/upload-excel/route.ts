@@ -12,11 +12,11 @@ interface ParticipantRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT LENGKAP": string;
+    "ALAMAT": string;
     "AGAMA": string;
-    "GOLONGAN DARAH": string;
+    "GOL DARAH": string;
     "TAHUN MASUK": number;
-    "GENDER": string;
+    "GENDER (L/P)": string;
     "NO HP"?: string | number;
 }
 
@@ -24,9 +24,9 @@ interface CompanionRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT LENGKAP": string;
+    "ALAMAT": string;
     "AGAMA": string;
-    "GOLONGAN DARAH": string;
+    "GOL DARAH": string;
     "TAHUN MASUK": number;
     "GENDER (L/P)": string;
     "NO HP"?: string | number;
@@ -83,10 +83,10 @@ export async function POST(req: NextRequest) {
         const imageUploadPromises: Promise<unknown>[] = [];
 
         // --- PROSES DATA PESERTA ---
-        const participantsSheet = workbook.getWorksheet('Data Peserta');
+        const participantsSheet = workbook.getWorksheet('PESERTA');
         if (!participantsSheet) throw new Error("Sheet 'Data Peserta' tidak ditemukan.");
         
-        const participantHeaderRow = participantsSheet.getRow(3);
+        const participantHeaderRow = participantsSheet.getRow(6);
         if (!participantHeaderRow.hasValues) throw new Error("Header tidak ditemukan di baris ke-3.");
 
         let photoColumnIndex = -1;
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         });
 
         participantsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber <= 3) return;
+            if (rowNumber <= 6) return;
 
             const rawRowData: RawRowData = {};
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -140,11 +140,11 @@ export async function POST(req: NextRequest) {
                 "NO": Number(rawRowData["NO"]) || 0,
                 "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
                 "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
-                "ALAMAT LENGKAP": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
+                "ALAMAT": getCellValue({ value: rawRowData["ALAMAT"] } as ExcelJS.Cell),
                 "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
-                "GOLONGAN DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
+                "GOL DARAH": getCellValue({ value: rawRowData["GOL DARAH"] } as ExcelJS.Cell),
                 "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
-                "GENDER": getCellValue({ value: rawRowData["GENDER"] } as ExcelJS.Cell),
+                "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER (L/P)"] } as ExcelJS.Cell),
                 "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
                 photoUrl: photoUrl,
             });
@@ -152,13 +152,13 @@ export async function POST(req: NextRequest) {
 
         // --- PROSES DATA PENDAMPING ---
         let processedCompanions: CompanionRow[] = [];
-        const companionsSheet = workbook.getWorksheet('Data Pendamping');
+        const companionsSheet = workbook.getWorksheet('PENDAMPING');
         if (companionsSheet) {
             const companionList: CompanionRow[] = [];
-            const companionHeaderRow = companionsSheet.getRow(3);
+            const companionHeaderRow = companionsSheet.getRow(6);
             if (companionHeaderRow.hasValues) {
                 companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-                    if (rowNumber <= 3) return;
+                    if (rowNumber <= 6) return;
                     const rawRowData: RawRowData = {};
                     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                         const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
@@ -170,9 +170,9 @@ export async function POST(req: NextRequest) {
                             "NO": Number(rawRowData["NO"]) || 0,
                             "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
                             "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
-                            "ALAMAT LENGKAP": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
+                            "ALAMAT": getCellValue({ value: rawRowData["ALAMAT"] } as ExcelJS.Cell),
                             "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
-                            "GOLONGAN DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
+                            "GOL DARAH": getCellValue({ value: rawRowData["GOL DARAH"] } as ExcelJS.Cell),
                             "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
                             "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER (L/P)"] } as ExcelJS.Cell),
                             "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
