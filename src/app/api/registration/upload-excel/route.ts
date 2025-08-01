@@ -201,13 +201,19 @@ export async function POST(req: NextRequest) {
             processedCompanions = companionList;
         }
         
+        // Tunggu semua proses unggah gambar selesai
         const uploadResults = await Promise.all(imageUploadPromises);
         uploadResults.forEach(result => {
-            if (result && (result as any).error) {
-                // Log error spesifik untuk setiap gambar yang gagal
-                console.error("A Supabase photo upload failed in background:", (result as any).error);
-            }
-        });
+            if (
+        result && 
+        typeof result === 'object' && 
+        'error' in result && 
+        result.error
+    ) {
+        // Di dalam blok ini, TypeScript sekarang "tahu" bahwa result.error ada.
+        console.error("A Supabase photo upload failed in background:", result.error);
+    }
+});
         
         if (processedParticipants.length === 0) {
             throw new Error("Tidak ada data peserta valid yang ditemukan di file.");
