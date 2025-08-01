@@ -9,7 +9,8 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   SortingState,
-  ColumnFiltersState
+  ColumnFiltersState,
+  getFacetedRowModel,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -29,7 +30,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Download, ListFilter, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Download, ListFilter, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 import { FormattedParticipant } from "@/types/admin";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -76,37 +77,30 @@ export function PesertaTableWrapper() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-
+  const [globalFilter, setGlobalFilter] = React.useState(''); // State baru untuk pencarian global
   // Fetch data di sisi client
   React.useEffect(() => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const params = new URLSearchParams();
-            const categoryFilter = columnFilters.find(f => f.id === 'category');
-            if (categoryFilter && categoryFilter.value) {
-                params.append('category', categoryFilter.value as string);
-            }
-
-            const response = await fetch(`/api/admin/all-participants?${params.toString()}`);
+            // Kita tidak perlu lagi mengirim filter kategori ke API,
+            // karena TanStack Table bisa memfilternya di sisi klien dengan sangat cepat.
+            const response = await fetch(`/api/admin/all-participants`);
             if (!response.ok) throw new Error("Gagal mengambil data dari server");
             const fetchedData = await response.json();
             setData(fetchedData);
-        } catch (error: unknown) { // <-- Gunakan 'unknown' untuk tipe yang aman
+        } catch (error: unknown) {
             let errorMessage = "Gagal memuat data peserta.";
-            if (error instanceof Error) {
-                errorMessage = error.message; // Gunakan pesan dari error jika ada
-            }
-            console.error("Fetch Peserta Error:", error); // Log error asli untuk debugging
+            if (error instanceof Error) errorMessage = error.message;
             toast.error("Gagal memuat data", { description: errorMessage });
         } finally {
             setIsLoading(false);
         }
     };
     fetchData();
-  }, [columnFilters]);
+  }, []); // Hapus dependensi columnFilters agar tidak fetch ulang saat filter
 
-  const table = useReactTable({
+ const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
@@ -115,10 +109,10 @@ export function PesertaTableWrapper() {
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
-    initialState: {
-        pagination: { pageSize: 25 } // Tampilkan 25 baris per halaman
-    },
-    state: { sorting, columnFilters },
+    onGlobalFilterChange: setGlobalFilter, // Hubungkan state global filter
+    getFacetedRowModel: getFacetedRowModel(), // Aktifkan model untuk global filter
+    initialState: { pagination: { pageSize: 25 } },
+    state: { sorting, columnFilters, globalFilter },
   });
   
   const handleExport = () => {
@@ -155,107 +149,89 @@ export function PesertaTableWrapper() {
 
   const categories: SchoolCategory[] = ["WIRA", "MADYA"];
 
-  return (
+ return (
     <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <Input
-              placeholder="Cari nama peserta atau sekolah..."
-              value={(table.getColumn("fullName")?.getFilterValue() as string) ?? ""}
-              onChange={(event) => table.getColumn("fullName")?.setFilterValue(event.target.value)}
-              className="max-w-sm w-full"
+              placeholder="Cari nama, sekolah..."
+              value={globalFilter ?? ""} // Gunakan state globalFilter
+              onChange={(event) => setGlobalFilter(event.target.value)} // Update state globalFilter
+              className="max-w-sm w-full bg-transparent border-neutral-700 focus:ring-pmi-red"
             />
             <div className="flex gap-2 w-full sm:w-auto">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full sm:w-auto gap-1">
+                        <Button variant="outline" className="w-full sm:w-auto gap-1 border-neutral-700 hover:bg-neutral-800 hover:text-white">
                             <ListFilter className="h-4 w-4" /> Filter Kategori
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="bg-neutral-900 border-neutral-700 text-white">
                         <DropdownMenuLabel>Filter berdasarkan Kategori</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
+                        <DropdownMenuSeparator className="bg-neutral-700" />
                         <DropdownMenuCheckboxItem checked={!table.getColumn("category")?.getFilterValue()} onCheckedChange={() => table.getColumn("category")?.setFilterValue(undefined)}>Semua Kategori</DropdownMenuCheckboxItem>
                         {categories.map(cat => (
                             <DropdownMenuCheckboxItem key={cat} checked={table.getColumn("category")?.getFilterValue() === cat} onCheckedChange={() => table.getColumn("category")?.setFilterValue(cat)}>{cat}</DropdownMenuCheckboxItem>
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="outline" className="w-full sm:w-auto gap-1" onClick={handleExport}>
+                <Button variant="outline" className="w-full sm:w-auto gap-1 border-neutral-700 hover:bg-neutral-800 hover:text-white" onClick={handleExport}>
                     <Download className="h-4 w-4" /> Ekspor
                 </Button>
             </div>
         </div>
         
-               <div  className="rounded-lg border border-black">
-                    <Table>
-                        <TableHeader className="bg-pmi-red border  border-black">
-                            {table.getHeaderGroups().map(headerGroup => (
-                                <TableRow key={headerGroup.id} className="border border-black">
-                                    {headerGroup.headers.map(header => (
-                                        <TableHead key={header.id} className="border text-center font-bold text-white border-black">
-                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
+        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50">
+            <Table>
+                <TableHeader className="hover:bg-transparent">
+                    {table.getHeaderGroups().map(headerGroup => (
+                        <TableRow key={headerGroup.id} className="border-neutral-800">
+                            {headerGroup.headers.map(header => (
+                                <TableHead key={header.id} className="text-neutral-400">
+                                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                </TableHead>
                             ))}
-                        </TableHeader>
-                        <TableBody className="border border-black">
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Memuat data Peserta..</TableCell></TableRow>
-                            ) : table.getRowModel().rows?.length ? (
-                                table.getRowModel().rows.map(row => (
-                                    <TableRow key={row.original.no} className="border-black border">
-                                        {row.getVisibleCells().map(cell => 
-                                            <TableCell key={cell.id} className="border-black border">
-                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                            </TableCell>
-                                        )}
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada data Peserta yang cocok.</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-                
-        {/* Paginasi Lengkap */}
+                        </TableRow>
+                    ))}
+                </TableHeader>
+                <TableBody>
+                    {isLoading ? (
+                        <TableRow><TableCell colSpan={columns.length} className="h-48 text-center"><div className="flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin" /><span>Memuat data peserta...</span></div></TableCell></TableRow>
+                    ) : table.getRowModel().rows?.length ? (
+                        table.getRowModel().rows.map(row => (
+                            <TableRow key={row.original.no} className="border-neutral-800 hover:bg-neutral-800/50">
+                                {row.getVisibleCells().map(cell => 
+                                    <TableCell key={cell.id}>
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </TableCell>
+                                )}
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada data peserta yang cocok.</TableCell></TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </div>
+        
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4">
             <div className="flex-1 text-sm text-muted-foreground">
-                Total {table.getFilteredRowModel().rows.length} peserta.
+                Total {table.getFilteredRowModel().rows.length} dari {data.length} peserta.
             </div>
             <div className="flex items-center space-x-2">
-                <span className="text-sm">Baris per halaman:</span>
-                <Select
-                    value={`${table.getState().pagination.pageSize}`}
-                    onValueChange={(value) => { table.setPageSize(Number(value)) }}
-                >
-                    <SelectTrigger className="h-8 w-[70px]">
-                        <SelectValue placeholder={table.getState().pagination.pageSize} />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                        {[10, 25, 50, 100].map((pageSize) => (
-                            <SelectItem key={pageSize} value={`${pageSize}`}>{pageSize}</SelectItem>
-                        ))}
-                    </SelectContent>
+                <span className="text-sm">Baris/hal:</span>
+                <Select value={`${table.getState().pagination.pageSize}`} onValueChange={(value) => { table.setPageSize(Number(value)) }}>
+                    <SelectTrigger className="h-8 w-[70px]"><SelectValue placeholder={table.getState().pagination.pageSize} /></SelectTrigger>
+                    <SelectContent side="top">{[10, 25, 50, 100].map(pageSize => <SelectItem key={pageSize} value={`${pageSize}`}>{pageSize}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
             <div className="flex items-center space-x-2">
                 <span className="text-sm">
-                    Halaman {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}
+                    Hal {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}
                 </span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
-                    <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-                    <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-                    <ChevronRight className="h-4 w-4" />
-                </Button>
-                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()}>
-                    <ChevronsRight className="h-4 w-4" />
-                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}><ChevronsLeft className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><ChevronLeft className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()}><ChevronsRight className="h-4 w-4" /></Button>
             </div>
       </div>
     </div>
