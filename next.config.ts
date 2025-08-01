@@ -8,21 +8,24 @@ module.exports = {
 
 const nextConfig = {
     images: {
+        // Konfigurasi ini memberitahu Next.js dari domain mana saja ia boleh mengoptimalkan gambar.
         remotePatterns: [
             {
+                // Izinkan gambar dari domain aplikasi Anda sendiri (jika ada)
                 protocol: 'https',
-                hostname: 'https://dwhzkbncnypcksqlvfmp.supabase.co', // Ganti dengan domain Vercel Anda
+                hostname: 'pmrcianjur.vercel.app', // Ganti dengan domain Vercel Anda
                 port: '',
-                pathname: '/storage/v1/object/public/**', // Izinkan semua path di bawah /uploads/
+                pathname: '/uploads/**', 
             },
-            // Jika Anda menggunakan Supabase Storage, tambahkan hostname-nya di sini
-            // {
-            //     protocol: 'https',
-            //     hostname: '<your-project-ref>.supabase.co',
-            //     port: '',
-            //     pathname: '/storage/v1/object/public/**',
-            // }
+            {
+                // --- TAMBAHKAN BLOK INI UNTUK SUPABASE ---
+                protocol: 'https',
+                hostname: 'dwhzkbncnypcksqlvfmp.supabase.co', // <-- GANTI DENGAN HOSTNAME SUPABASE ANDA
+                port: '',
+                pathname: '/storage/v1/object/public/**', // Izinkan semua path di bawah public storage
+            }
         ],
     },
 };
+
 export default nextConfig;
