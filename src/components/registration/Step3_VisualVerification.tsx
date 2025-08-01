@@ -84,6 +84,7 @@ export default function Step3_VisualVerification() {
                                 fill 
                                 className="object-cover" 
                                 sizes="(max-width: 640px) 50vw, 33vw, 25vw, 20vw" 
+                                unoptimized
                             />
                         ) : (
                             <div className="flex flex-col items-center text-center text-gray-400 p-2">

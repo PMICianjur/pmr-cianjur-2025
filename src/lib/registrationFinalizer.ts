@@ -6,7 +6,7 @@ import { generateAndSaveReceipt } from './receiptGenerator';
 import path from 'path';
 
 // Nama bucket Supabase Anda
-const BUCKET_NAME = 'pendaftaran-files';
+const BUCKET_NAME = 'pendaftaranfiles';
 
 // --- DEFINISI TIPE DATA ---
 interface SchoolData {
