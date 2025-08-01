@@ -69,36 +69,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: "Data tidak lengkap." }, { status: 400 });
         }
         
-        console.log(`[UPLOAD-EXCEL] Starting upload for tempRegId: ${tempRegId}`);
-        console.log(`[UPLOAD-EXCEL] Bucket Name: ${BUCKET_NAME}`);
-        console.log(`[UPLOAD-EXCEL] Supabase URL is set: ${!!process.env.NEXT_PUBLIC_SUPABASE_URL}`);
-        console.log(`[UPLOAD-EXCEL] Supabase Service Key is set: ${!!process.env.SUPABASE_SERVICE_KEY}`);
-
         const arrayBuffer = await file.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer); 
-        const excelPath = `uploads/temp/${tempRegId}/data-peserta.xlsx`;
-        // Tidak lagi menulis ke disk, langsung proses dari buffer
-        console.log(`[UPLOAD-EXCEL] Attempting to upload Excel to: ${excelPath}`);
-        const { error: uploadError } = await supabaseAdmin.storage
-            .from(BUCKET_NAME)
-            .upload(excelPath, fileBuffer, {
-                contentType: file.type,
-                upsert: true,
-            });
-        if (uploadError) {
-            console.error("!!! Supabase Excel upload error:", uploadError);
-            // Lempar error agar blok catch utama menanganinya
-            throw new Error(`Gagal mengunggah file Excel: ${uploadError.message}`);
-        }
-        console.log(`[UPLOAD-EXCEL] SUCCESS: Excel file uploaded to Supabase.`);
 
         const workbook = new ExcelJS.Workbook();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await workbook.xlsx.load(fileBuffer as any);
+          await workbook.xlsx.load(fileBuffer as any);
 
         const processedParticipants: ProcessedParticipant[] = [];
-        const imageUploadPromises: Promise<unknown>[] = [];
-        
+        const imageUploadPromises: Promise<string | null>[] = []; // Promise akan me-resolve URL atau null
 
         // --- PROSES DATA PESERTA ---
         const participantsSheet = workbook.getWorksheet('PESERTA');
@@ -133,9 +112,23 @@ export async function POST(req: NextRequest) {
             
             if (!rawRowData["NAMA LENGKAP"]) return;
             
-            let photoUrl: string | null = null;
+            const participantData: ParticipantRow = {
+                "NO": Number(rawRowData["NO"]) || 0,
+                "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
+                "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
+                "ALAMAT": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
+                "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
+                "GOL DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
+                "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
+                "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER(L/P)"] } as ExcelJS.Cell),
+                "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
+            };
+            
+            // Tambahkan ke array utama dengan photoUrl null untuk sementara
+            processedParticipants.push({ ...participantData, photoUrl: null });
+            
+            // Buat promise untuk unggah foto
             const image = participantImageMap.get(rowNumber - 1);
-
             if (image && image.buffer) {
                 const personName = String(rawRowData["NAMA LENGKAP"]);
                 const photoPath = `uploads/temp/${tempRegId}/photos/peserta-${personName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}-${rawRowData["NO"]}.webp`;
@@ -148,28 +141,24 @@ export async function POST(req: NextRequest) {
                         supabaseAdmin.storage
                             .from(BUCKET_NAME)
                             .upload(photoPath, optimizedBuffer, { contentType: 'image/webp', upsert: true })
-                    );
+                    )
+                    .then(result => {
+                        if (result.error) {
+                            console.error(`Supabase photo upload error for ${photoPath}:`, result.error);
+                            return null;
+                        }
+                        const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(result.data.path);
+                        return publicUrl;
+                    });
                 imageUploadPromises.push(uploadPromise);
-                const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(photoPath);
-                photoUrl = publicUrl;
+            } else {
+                // Jika tidak ada gambar, push promise yang langsung resolve ke null
+                imageUploadPromises.push(Promise.resolve(null));
             }
-            
-            processedParticipants.push({
-                "NO": Number(rawRowData["NO"]) || 0,
-                "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
-                "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
-                "ALAMAT": getCellValue({ value: rawRowData["ALAMAT"] } as ExcelJS.Cell),
-                "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
-                "GOL DARAH": getCellValue({ value: rawRowData["GOL DARAH"] } as ExcelJS.Cell),
-                "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
-                "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER (L/P)"] } as ExcelJS.Cell),
-                "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
-                photoUrl: photoUrl,
-            });
         });
 
         // --- PROSES DATA PENDAMPING ---
-        let processedCompanions: CompanionRow[] = [];
+let processedCompanions: CompanionRow[] = [];
         const companionsSheet = workbook.getWorksheet('PENDAMPING');
         if (companionsSheet) {
             const companionList: CompanionRow[] = [];
@@ -200,20 +189,14 @@ export async function POST(req: NextRequest) {
             }
             processedCompanions = companionList;
         }
-        
-        // Tunggu semua proses unggah gambar selesai
-        const uploadResults = await Promise.all(imageUploadPromises);
-        uploadResults.forEach(result => {
-            if (
-        result && 
-        typeof result === 'object' && 
-        'error' in result && 
-        result.error
-    ) {
-        // Di dalam blok ini, TypeScript sekarang "tahu" bahwa result.error ada.
-        console.error("A Supabase photo upload failed in background:", result.error);
-    }
-});
+
+        // --- TUNGGU SEMUA UPLOAD GAMBAR SELESAI ---
+        const photoUrls = await Promise.all(imageUploadPromises);
+
+        // --- MAP KEMBALI URL FOTO KE PESERTA ---
+        processedParticipants.forEach((participant, index) => {
+            participant.photoUrl = photoUrls[index];
+        });
         
         if (processedParticipants.length === 0) {
             throw new Error("Tidak ada data peserta valid yang ditemukan di file.");
@@ -229,10 +212,10 @@ export async function POST(req: NextRequest) {
 
     } catch (error: unknown) {
         let errorMessage = "Gagal memproses file.";
-        if (error instanceof Error) {
-            errorMessage = error.message;
-        }
+        if (error instanceof Error) errorMessage = error.message;
         console.error("Excel processing error:", error);
         return NextResponse.json({ message: errorMessage }, { status: 500 });
     }
-}
+} 
+      
+        
