@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
                             return null;
                         }
                         const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(result.data.path);
+                        console.log(`[UPLOAD-EXCEL] Generated Public URL for ${personName}: ${photoUrls}`);
                         return publicUrl;
                     });
                 imageUploadPromises.push(uploadPromise);
