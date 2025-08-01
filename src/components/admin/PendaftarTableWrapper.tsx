@@ -97,14 +97,19 @@ export function PendaftarTableWrapper() {
             if(!response.ok) throw new Error("Gagal mengambil data pendaftar");
             const fetchedData = await response.json();
             setData(fetchedData);
-        } catch (error: any) {
-            toast.error("Gagal Memuat Data", { description: error.message });
+        } catch (error: unknown) { // 1. Gunakan `unknown`
+            let errorMessage = "Gagal mengambil data pendaftar.";
+            // 2. Lakukan type guard
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            toast.error("Gagal Memuat Data", { description: errorMessage });
         } finally {
             setIsLoading(false);
         }
     };
     fetchData();
-  }, []);
+}, []);
 
   const handleViewDetail = (id: number) => {
     setSelectedRegistrationId(id);

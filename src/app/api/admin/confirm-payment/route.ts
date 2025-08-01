@@ -36,8 +36,13 @@ export async function POST(req: NextRequest) {
             payment: updatedPayment
         });
 
-    } catch (error: any) {
-        console.error("Error confirming payment:", error);
-        return NextResponse.json({ message: error.message || "Gagal mengkonfirmasi pembayaran." }, { status: 500 });
+    } catch (error: unknown) { // 1. Gunakan `unknown`
+    let errorMessage = "Gagal mengkonfirmasi pembayaran.";
+    // 2. Lakukan type guard
+    if (error instanceof Error) {
+        errorMessage = error.message;
     }
+    console.error("Error confirming payment:", error);
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
+}
 }

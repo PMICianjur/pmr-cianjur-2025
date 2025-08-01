@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { SchoolCategory } from "@prisma/client";
+import { Prisma, SchoolCategory } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category') as SchoolCategory | null;
 
-        const whereClause: any = {
-            payment: { status: 'SUCCESS' }
+        const whereClause: Prisma.CompanionWhereInput = {
+            registration: {
+                payment: {
+                    status: 'SUCCESS'
+                }
+            }
         };
 
-        if (category) {
-            whereClause.school = { category: category };
+       if (category && (category === 'WIRA' || category === 'MADYA')) {
+            whereClause.registration!.school = { // Gunakan '!' karena kita tahu `registration` sudah ada
+                category: category
+            };
         }
 
         const companions = await prisma.companion.findMany({
-            where: {
-                registration: whereClause,
-            },
+            where: whereClause,
             include: {
                 registration: {
                     include: {
@@ -44,8 +48,13 @@ export async function GET(req: NextRequest) {
         }));
 
         return NextResponse.json(formattedData);
-    } catch (error: any) {
-        console.error("Error fetching all companions:", error);
-        return NextResponse.json({ message: "Gagal mengambil data pendamping." }, { status: 500 });
+    } catch (error: unknown) { // 1. Gunakan `unknown`
+    let errorMessage = "Terjadi kesalahan pada server.";
+    // 2. Lakukan type guard
+    if (error instanceof Error) {
+        errorMessage = error.message;
     }
+    console.error("Error fetching data:", error);
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
+}
 }

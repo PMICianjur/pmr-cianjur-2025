@@ -8,7 +8,6 @@ import { BIAYA_PESERTA, BIAYA_PENDAMPING } from '@/config/fees';
 import {
     type ProcessedParticipant,
     type CompanionExcelRow,
-    type ParticipantExcelRow,
     type SchoolData,
 } from '@/types/registration';
 
