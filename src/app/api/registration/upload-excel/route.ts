@@ -69,21 +69,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: "Data tidak lengkap." }, { status: 400 });
         }
         
-        const arrayBuffer = await file.arrayBuffer();
-        const fileBuffer = Buffer.from(arrayBuffer); 
-
+        const fileBuffer = Buffer.from(await file.arrayBuffer()); 
         const workbook = new ExcelJS.Workbook();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await workbook.xlsx.load(fileBuffer as any);
-
-        const processedParticipants: ProcessedParticipant[] = [];
-        const imageUploadPromises: Promise<string | null>[] = []; // Promise akan me-resolve URL atau null
+        
 
         // --- PROSES DATA PESERTA ---
-        const participantsSheet = workbook.getWorksheet('PESERTA');
+        const participantsSheet = workbook.getWorksheet('Data Peserta');
         if (!participantsSheet) throw new Error("Sheet 'Data Peserta' tidak ditemukan.");
         
-        const participantHeaderRow = participantsSheet.getRow(6);
+        const participantHeaderRow = participantsSheet.getRow(3);
         if (!participantHeaderRow.hasValues) throw new Error("Header tidak ditemukan di baris ke-3.");
 
         let photoColumnIndex = -1;
@@ -101,63 +97,48 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        participantsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber <= 6) return;
-
-            const rawRowData: RawRowData = {};
+        const participantPromises = participantsSheet.getRows(4, participantsSheet.rowCount - 3)!.map(async (row) => {
+            const rawRowData: { [key: string]: any } = {};
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                 const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
-                if (header) rawRowData[header] = cell.value;
+                if (header) rawRowData[header] = getCellValue(cell);
             });
             
-            if (!rawRowData["NAMA LENGKAP"]) return;
+            if (!rawRowData["NAMA LENGKAP"]) return null;
             
-            const participantData: ParticipantRow = {
-                "NO": Number(rawRowData["NO"]) || 0,
-                "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
-                "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
-                "ALAMAT": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
-                "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
-                "GOL DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
-                "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
-                "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER(L/P)"] } as ExcelJS.Cell),
-                "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
-            };
-            
-            // Tambahkan ke array utama dengan photoUrl null untuk sementara
-            processedParticipants.push({ ...participantData, photoUrl: null });
-            
-            // Buat promise untuk unggah foto
-            const image = participantImageMap.get(rowNumber - 1);
+            let photoUrl: string | null = null;
+            const image = participantImageMap.get(row.number - 1);
             if (image && image.buffer) {
                 const personName = String(rawRowData["NAMA LENGKAP"]);
                 const photoPath = `uploads/temp/${tempRegId}/photos/peserta-${personName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}-${rawRowData["NO"]}.webp`;
                 
-                const uploadPromise = sharp(Buffer.from(image.buffer))
-                    .resize(300, 400, { fit: 'cover' })
-                    .webp({ quality: 80 })
-                    .toBuffer()
-                    .then(optimizedBuffer => 
-                        supabaseAdmin.storage
-                            .from(BUCKET_NAME)
-                            .upload(photoPath, optimizedBuffer, { contentType: 'image/webp', upsert: true })
-                    )
-                    .then(result => {
-                        if (result.error) {
-                            console.error(`Supabase photo upload error for ${photoPath}:`, result.error);
-                            return null;
-                        }
-                        const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(result.data.path);
-                        console.log(`[UPLOAD-EXCEL] Generated Public URL for ${personName}: ${photoUrls}`);
-                        return publicUrl;
-                    });
-                imageUploadPromises.push(uploadPromise);
-            } else {
-                // Jika tidak ada gambar, push promise yang langsung resolve ke null
-                imageUploadPromises.push(Promise.resolve(null));
+                const optimizedBuffer = await sharp(Buffer.from(image.buffer)).resize(300, 400, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
+                
+                const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET_NAME).upload(photoPath, optimizedBuffer, { contentType: 'image/webp', upsert: true });
+                
+                if (uploadError) {
+                    console.error(`Supabase photo upload error for ${photoPath}:`, uploadError);
+                } else {
+                    const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(photoPath);
+                    photoUrl = publicUrl;
+                }
             }
+            
+            return {
+                "NO": Number(rawRowData["NO"]) || 0,
+                "NAMA LENGKAP": String(rawRowData["NAMA LENGKAP"] || ""),
+                "TEMPAT, TANGGAL LAHIR": String(rawRowData["TEMPAT, TANGGAL LAHIR"] || ""),
+                "ALAMAT": String(rawRowData["ALAMAT"] || ""),
+                "AGAMA": String(rawRowData["AGAMA"] || ""),
+                "GOL DARAH": String(rawRowData["GOL DARAH"] || ""),
+                "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
+                "GENDER (L/P)": String(rawRowData["GENDER (L/P)"] || ""),
+                "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
+                photoUrl: photoUrl,
+            };
         });
 
+        const resolvedParticipants = (await Promise.all(participantPromises)).filter(Boolean) as ProcessedParticipant[];
         // --- PROSES DATA PENDAMPING ---
 let processedCompanions: CompanionRow[] = [];
         const companionsSheet = workbook.getWorksheet('PENDAMPING');
@@ -191,24 +172,16 @@ let processedCompanions: CompanionRow[] = [];
             processedCompanions = companionList;
         }
 
-        // --- TUNGGU SEMUA UPLOAD GAMBAR SELESAI ---
-        const photoUrls = await Promise.all(imageUploadPromises);
-
-        // --- MAP KEMBALI URL FOTO KE PESERTA ---
-        processedParticipants.forEach((participant, index) => {
-            participant.photoUrl = photoUrls[index];
-        });
-        
-        if (processedParticipants.length === 0) {
+        if (resolvedParticipants.length === 0) {
             throw new Error("Tidak ada data peserta valid yang ditemukan di file.");
         }
         
-        processedParticipants.sort((a, b) => a.NO - b.NO);
+        resolvedParticipants.sort((a, b) => a.NO - b.NO);
         processedCompanions.sort((a, b) => a.NO - b.NO);
 
         return NextResponse.json({ 
             message: "File berhasil diproses dan diunggah.",
-            data: { participants: processedParticipants, companions: processedCompanions }
+            data: { participants: resolvedParticipants, companions: processedCompanions }
         }, { status: 200 });
 
     } catch (error: unknown) {
@@ -218,5 +191,4 @@ let processedCompanions: CompanionRow[] = [];
         return NextResponse.json({ message: errorMessage }, { status: 500 });
     }
 } 
-      
-        
+            
