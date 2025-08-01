@@ -1,31 +1,23 @@
-import type { NextConfig } from "next";
-
+/** @type {import('next').NextConfig} */
 module.exports = {
   typescript: {
     ignoreBuildErrors: true,
   },
 }
-
 const nextConfig = {
-    images: {
-        // Konfigurasi ini memberitahu Next.js dari domain mana saja ia boleh mengoptimalkan gambar.
-        remotePatterns: [
-            {
-                // Izinkan gambar dari domain aplikasi Anda sendiri (jika ada)
-                protocol: 'https',
-                hostname: 'pmrcianjur.vercel.app', // Ganti dengan domain Vercel Anda
-                port: '',
-                pathname: '/uploads/**', 
-            },
-            {
-                // --- TAMBAHKAN BLOK INI UNTUK SUPABASE ---
-                protocol: 'https',
-                hostname: 'dwhzkbncnypcksqlvfmp.supabase.co', // <-- GANTI DENGAN HOSTNAME SUPABASE ANDA
-                port: '',
-                pathname: '/storage/v1/object/public/**', // Izinkan semua path di bawah public storage
-            }
-        ],
-    },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        // --- TEMPELKAN HOSTNAME ANDA PERSIS DI SINI ---
+        hostname: 'dwhzkbncnypcksqlvfmp.supabase.co', 
+        // ---------------------------------------------
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
+
