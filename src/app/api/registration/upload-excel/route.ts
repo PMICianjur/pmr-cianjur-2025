@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // Menggunakan Supabase Storage
 
-// Tipe data yang kita harapkan dari setiap baris di Excel
+const BUCKET_NAME = 'pendaftaran-files'; // Pastikan nama ini sama dengan di Supabase
+
+// Tipe data yang diharapkan dari setiap baris di Excel
+// Pastikan ini cocok 100% dengan header di file Excel Anda
 interface ParticipantRow {
     "NO": number;
     "NAMA LENGKAP": string;
@@ -34,6 +36,9 @@ interface CompanionRow {
 interface ProcessedParticipant extends ParticipantRow {
     photoUrl: string | null;
 }
+
+// Tipe untuk data mentah yang dibaca dari sel, sebelum divalidasi
+type RawRowData = Record<string, ExcelJS.CellValue>;
 
 // Fungsi helper yang robust untuk mendapatkan nilai teks dari sel
 const getCellValue = (cell: ExcelJS.Cell): string => {
@@ -66,33 +71,27 @@ export async function POST(req: NextRequest) {
         
         const arrayBuffer = await file.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer); 
-        
-        // Simpan file temporer ke disk
-        const tempDir = path.join('/tmp', tempRegId); // Gunakan /tmp untuk lingkungan serverless
-        await fs.mkdir(tempDir, { recursive: true });
-        const tempExcelPath = path.join(tempDir, 'data-peserta.xlsx');
-        await fs.writeFile(tempExcelPath, fileBuffer);
+
+        // Tidak lagi menulis ke disk, langsung proses dari buffer
+        console.log(`[UPLOAD-EXCEL] Processing file from buffer for tempRegId: ${tempRegId}`);
 
         const workbook = new ExcelJS.Workbook();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await workbook.xlsx.load(fileBuffer as any);
 
         const processedParticipants: ProcessedParticipant[] = [];
-        const imageSavePromises: Promise<unknown>[] = [];
-        const photosDir = path.join('/tmp', tempRegId, 'photos');
-        await fs.mkdir(photosDir, { recursive: true });
+        const imageUploadPromises: Promise<unknown>[] = [];
 
         // --- PROSES DATA PESERTA ---
-        const participantsSheet = workbook.getWorksheet('PESERTA');
+        const participantsSheet = workbook.getWorksheet('Data Peserta');
         if (!participantsSheet) throw new Error("Sheet 'Data Peserta' tidak ditemukan.");
         
-        const participantHeaderRow = participantsSheet.getRow(6);
+        const participantHeaderRow = participantsSheet.getRow(3);
         if (!participantHeaderRow.hasValues) throw new Error("Header tidak ditemukan di baris ke-3.");
 
         let photoColumnIndex = -1;
         participantHeaderRow.eachCell((cell, colNumber) => {
-            const cellText = getCellValue(cell);
-            if (cellText.toUpperCase().trim() === 'FOTO') photoColumnIndex = colNumber - 1;
+            if (getCellValue(cell).toUpperCase().trim() === 'FOTO') photoColumnIndex = colNumber - 1;
         });
 
         const participantImageMap = new Map<number, ExcelJS.Image>();
@@ -106,14 +105,12 @@ export async function POST(req: NextRequest) {
         });
 
         participantsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber <= 6) return;
+            if (rowNumber <= 3) return;
 
-            const rawRowData: { [key: string]: string | number | null } = {};
+            const rawRowData: RawRowData = {};
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                 const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
-                if (header && header !== 'FOTO') {
-                    rawRowData[header] = getCellValue(cell);
-                }
+                if (header) rawRowData[header] = cell.value;
             });
             
             if (!rawRowData["NAMA LENGKAP"]) return;
@@ -123,55 +120,82 @@ export async function POST(req: NextRequest) {
 
             if (image && image.buffer) {
                 const personName = String(rawRowData["NAMA LENGKAP"]);
-                const safeFilename = `peserta-${personName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}-${rawRowData["NO"]}.webp`;
-                const photoPath = path.join(photosDir, safeFilename);
-                const imageNodeBuffer = Buffer.from(image.buffer);
-                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const savePromise = sharp(imageNodeBuffer as any)
+                const photoPath = `uploads/temp/${tempRegId}/photos/peserta-${personName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}-${rawRowData["NO"]}.webp`;
+                
+                const uploadPromise = sharp(Buffer.from(image.buffer))
                     .resize(300, 400, { fit: 'cover' })
                     .webp({ quality: 80 })
-                    .toFile(photoPath);
-                imageSavePromises.push(savePromise);
-                photoUrl = `/uploads/temp/${tempRegId}/photos/${safeFilename}`; // Ini hanya untuk referensi, file sebenarnya ada di /tmp
+                    .toBuffer()
+                    .then(optimizedBuffer => 
+                        supabaseAdmin.storage
+                            .from(BUCKET_NAME)
+                            .upload(photoPath, optimizedBuffer, { contentType: 'image/webp', upsert: true })
+                    );
+                imageUploadPromises.push(uploadPromise);
+                const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(photoPath);
+                photoUrl = publicUrl;
             }
             
             processedParticipants.push({
                 "NO": Number(rawRowData["NO"]) || 0,
-                "NAMA LENGKAP": String(rawRowData["NAMA LENGKAP"] || ""),
-                "TEMPAT, TANGGAL LAHIR": String(rawRowData["TEMPAT, TANGGAL LAHIR"] || ""),
-                "ALAMAT LENGKAP": String(rawRowData["ALAMAT LENGKAP"] || ""),
-                "AGAMA": String(rawRowData["AGAMA"] || ""),
-                "GOLONGAN DARAH": String(rawRowData["GOLONGAN DARAH"] || ""),
+                "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
+                "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
+                "ALAMAT LENGKAP": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
+                "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
+                "GOLONGAN DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
                 "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
-                "GENDER": String(rawRowData["GENDER"] || ""),
+                "GENDER": getCellValue({ value: rawRowData["GENDER"] } as ExcelJS.Cell),
                 "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
                 photoUrl: photoUrl,
             });
         });
 
-       const processedCompanions: CompanionRow[] = []; // Gunakan `let` di sini
-const companionsSheet = workbook.getWorksheet('PESERTA');
-if (companionsSheet) {
-    const companionHeaderRow = companionsSheet.getRow(6);
-    if (companionHeaderRow.hasValues) {
-        companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber <= 3) return;
+        // --- PROSES DATA PENDAMPING ---
+        let processedCompanions: CompanionRow[] = [];
+        const companionsSheet = workbook.getWorksheet('Data Pendamping');
+        if (companionsSheet) {
+            const companionList: CompanionRow[] = [];
+            const companionHeaderRow = companionsSheet.getRow(3);
+            if (companionHeaderRow.hasValues) {
+                companionsSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+                    if (rowNumber <= 3) return;
+                    const rawRowData: RawRowData = {};
+                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
+                        if (header) rawRowData[header] = cell.value;
+                    });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const rawRowData: { [key: string]: any } = {}; // Nonaktifkan ESLint untuk baris ini
-            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                const header = getCellValue(companionHeaderRow.getCell(colNumber)).toUpperCase().trim();
-                if (header) rawRowData[header] = getCellValue(cell);
-            });
-
-            if (rawRowData["NAMA LENGKAP"]) {
-                processedCompanions.push(rawRowData as CompanionRow);
+                    if (rawRowData["NAMA LENGKAP"]) {
+                        companionList.push({
+                            "NO": Number(rawRowData["NO"]) || 0,
+                            "NAMA LENGKAP": getCellValue({ value: rawRowData["NAMA LENGKAP"] } as ExcelJS.Cell),
+                            "TEMPAT, TANGGAL LAHIR": getCellValue({ value: rawRowData["TEMPAT, TANGGAL LAHIR"] } as ExcelJS.Cell),
+                            "ALAMAT LENGKAP": getCellValue({ value: rawRowData["ALAMAT LENGKAP"] } as ExcelJS.Cell),
+                            "AGAMA": getCellValue({ value: rawRowData["AGAMA"] } as ExcelJS.Cell),
+                            "GOLONGAN DARAH": getCellValue({ value: rawRowData["GOLONGAN DARAH"] } as ExcelJS.Cell),
+                            "TAHUN MASUK": Number(rawRowData["TAHUN MASUK"]) || 0,
+                            "GENDER (L/P)": getCellValue({ value: rawRowData["GENDER (L/P)"] } as ExcelJS.Cell),
+                            "NO HP": rawRowData["NO HP"] ? String(rawRowData["NO HP"]) : undefined,
+                        });
+                    }
+                });
             }
-        });
-    }
-}
+            processedCompanions = companionList;
+        }
         
-        await Promise.all(imageSavePromises);
+        // Tunggu semua proses unggah gambar selesai
+        const uploadResults = await Promise.all(imageUploadPromises);
+        uploadResults.forEach(result => {
+            if (
+        result && 
+        typeof result === 'object' && 
+        'error' in result && 
+        result.error
+    ) {
+        // Di dalam blok ini, TypeScript sekarang "tahu" bahwa result.error ada.
+        console.error("A Supabase photo upload failed in background:", result.error);
+    }
+});
         
         if (processedParticipants.length === 0) {
             throw new Error("Tidak ada data peserta valid yang ditemukan di file.");
@@ -181,7 +205,7 @@ if (companionsSheet) {
         processedCompanions.sort((a, b) => a.NO - b.NO);
 
         return NextResponse.json({ 
-            message: "File berhasil diproses.",
+            message: "File berhasil diproses dan diunggah.",
             data: { participants: processedParticipants, companions: processedCompanions }
         }, { status: 200 });
 
