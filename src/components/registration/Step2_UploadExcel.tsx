@@ -40,7 +40,7 @@ export default function Step2_UploadExcel() {
         toast.error("Sesi tidak valid. Silakan kembali ke langkah 1.");
         return;
     }
-
+    nextStep();
     setIsLoading(true);
 
     const formData = new FormData();
