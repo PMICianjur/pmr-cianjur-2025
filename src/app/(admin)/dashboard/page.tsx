@@ -1,10 +1,11 @@
 import prisma from "@/lib/prisma";
 import { Suspense } from "react";
-import { DashboardClientPage } from "@/components/admin/dashboard/DashboardClient";
+import { DashboardClientPage } from "@/components/admin/dashboard/DashboardClient"; // Memastikan nama impor konsisten
 import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
 import { PaymentStatus } from "@prisma/client";
+
 // Tipe data yang akan kita teruskan ke komponen klien.
-// Mendefinisikan tipe di sini memastikan keamanan antara Server dan Klien.
+// Ini adalah "kontrak" antara Server Component dan Client Component.
 export interface DashboardData {
     stats: {
         totalPendaftar: number;
@@ -17,31 +18,31 @@ export interface DashboardData {
         date: string;
         "Total Pemasukan": number;
     }[];
-   recentRegistrations: ({
+    recentRegistrations: {
         id: number;
-        createdAt: string;
+        createdAt: string; // Harus string (ISO format)
         school: { name: string };
         payment: {
-        status: PaymentStatus | null; // <-- Gunakan enum, bukan string
-        amount: number;
-    } | null;
-    })[];
-      loginHistory: ({
+            status: PaymentStatus; // Enum PaymentStatus
+            amount: number;
+        } | null;
+    }[];
+    loginHistory: {
         id: number;
-        loginAt: string;
+        loginAt: string; // Harus string (ISO format)
         admin: { name: string; username: string; };
-    })[];
+    }[];
 }
 
 // Fungsi asinkron untuk mengambil semua data dari database di server
 async function getDashboardData(): Promise<DashboardData> {
     // Jalankan semua query secara paralel untuk performa maksimal
-      const [
+    const [
         successfulRegistrations, 
         waitingConfirmationCount, 
-        recentRegistrations, 
+        recentRegistrationsData, 
         totalTendaSewa,
-        loginHistoryData // Kita ganti nama untuk kejelasan
+        loginHistoryData
     ] = await Promise.all([
         prisma.registration.findMany({ 
             where: { payment: { status: 'SUCCESS' } }, 
@@ -65,7 +66,7 @@ async function getDashboardData(): Promise<DashboardData> {
                 payment: { status: 'SUCCESS' }
             }
         }),
-   prisma.loginHistory.findMany({
+        prisma.loginHistory.findMany({
             take: 5,
             orderBy: { loginAt: 'desc' },
             include: { admin: { select: { name: true, username: true } } }
@@ -90,28 +91,37 @@ async function getDashboardData(): Promise<DashboardData> {
         };
     });
 
-      const formattedLoginHistory = loginHistoryData.map(entry => ({
+    // Format data agar aman diteruskan ke Client Component (mengubah Date menjadi string)
+    const formattedRecentRegistrations = recentRegistrationsData.map(reg => ({
+        id: reg.id,
+        createdAt: reg.createdAt.toISOString(),
+        school: reg.school,
+        // Pastikan objek payment juga aman
+        payment: reg.payment ? {
+            status: reg.payment.status,
+            amount: reg.payment.amount,
+        } : null,
+    }));
+
+    const formattedLoginHistory = loginHistoryData.map(entry => ({
         id: entry.id,
         loginAt: entry.loginAt.toISOString(),
-        admin: entry.admin
+        admin: entry.admin,
     }));
+
     return {
         stats,
         chartData,
-        recentRegistrations: recentRegistrations.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })),
+        recentRegistrations: formattedRecentRegistrations,
         loginHistory: formattedLoginHistory,
     };
 }
-
-
 
 export default async function DashboardPage() {
     // Ambil data di server
     const data = await getDashboardData();
 
     return (
-        // Gunakan Suspense untuk menampilkan skeleton saat data sedang di-fetch di server
-        // Ini berguna untuk navigasi sisi klien
         <Suspense fallback={<DashboardSkeleton />}>
             {/* Render Client Component dan teruskan semua data sebagai satu prop */}
             <DashboardClientPage initialData={data} />
