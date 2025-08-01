@@ -76,10 +76,10 @@ export async function POST(req: NextRequest) {
         
 
         // --- PROSES DATA PESERTA ---
-        const participantsSheet = workbook.getWorksheet('Data Peserta');
+        const participantsSheet = workbook.getWorksheet('PESERTA');
         if (!participantsSheet) throw new Error("Sheet 'Data Peserta' tidak ditemukan.");
         
-        const participantHeaderRow = participantsSheet.getRow(3);
+        const participantHeaderRow = participantsSheet.getRow(6);
         if (!participantHeaderRow.hasValues) throw new Error("Header tidak ditemukan di baris ke-3.");
 
         let photoColumnIndex = -1;
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
             }
         });
 
-const participantPromises = participantsSheet.getRows(4, participantsSheet.rowCount - 3)!.map(async (row) => {
+const participantPromises = participantsSheet.getRows(7, participantsSheet.rowCount - 6)!.map(async (row) => {
     const rawRowData: { [key: string]: ExcelJS.CellValue } = {}; // <-- UBAH DI SINI
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         const header = getCellValue(participantHeaderRow.getCell(colNumber)).toUpperCase().trim();
