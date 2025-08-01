@@ -18,6 +18,7 @@ interface ParticipantRow {
     "TAHUN MASUK": number;
     "GENDER (L/P)": string;
     "NO HP"?: string | number;
+    "FOTO"?: any;
 }
 
 interface CompanionRow {

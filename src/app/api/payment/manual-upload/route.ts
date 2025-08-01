@@ -6,6 +6,9 @@ import path from 'path';
 import sharp from 'sharp';
 import { generateSafeOrderId } from "@/lib/orderId";
 import { finalizeRegistration } from "@/lib/registrationFinalizer"; // Impor fungsi finalizer
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+const BUCKET_NAME = 'pendaftaranfiles';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,32 +24,54 @@ export async function POST(req: NextRequest) {
     const registrationData = JSON.parse(registrationDataString);
     const { schoolData } = registrationData;
     
+    // Generate Order ID yang unik dan URL-safe
+    // Fungsi ini sekarang async, jadi perlu di-await
     const orderId = await generateSafeOrderId(schoolData.schoolName);
     const schoolSlug = schoolData.schoolName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 50);
 
-    // Proses dan simpan bukti transfer
-    const permanentProofDir = path.join(process.cwd(), 'public', 'uploads', 'permanent', schoolSlug, 'payment');
-    await fs.mkdir(permanentProofDir, { recursive: true });
-    
-    const proofFilename = `bukti-${orderId.split('-')[0]}.webp`;
-    const permanentProofPath = path.join(permanentProofDir, proofFilename);
-    const publicProofPath = `/uploads/permanent/${schoolSlug}/payment/${proofFilename}`;
-    const fileBuffer = Buffer.from(await paymentProof.arrayBuffer());
+    // --- LOGIKA BARU: UPLOAD BUKTI PEMBAYARAN KE SUPABASE ---
 
-    await sharp(fileBuffer)
+    // 1. Tentukan path permanen di Supabase Storage
+    const proofFilename = `bukti-${orderId}.webp`;
+    const permanentProofPath = `uploads/permanent/${schoolSlug}/payment/${proofFilename}`;
+
+    // 2. Baca file dan kompres dengan Sharp
+    const fileBuffer = Buffer.from(await paymentProof.arrayBuffer());
+    const optimizedBuffer = await sharp(fileBuffer)
       .resize({ width: 800, withoutEnlargement: true })
       .webp({ quality: 75 })
-      .toFile(permanentProofPath);
+      .toBuffer();
+
+    // 3. Unggah buffer yang sudah dioptimalkan ke Supabase
+    const { error: uploadError } = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .upload(permanentProofPath, optimizedBuffer, {
+            contentType: 'image/webp',
+            upsert: true, // Timpa jika ada
+        });
+
+    if (uploadError) {
+        console.error("Supabase payment proof upload error:", uploadError);
+        throw new Error(`Gagal mengunggah bukti pembayaran: ${uploadError.message}`);
+    }
+
+    // 4. Dapatkan URL publik dari file yang baru diunggah
+    const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(permanentProofPath);
+    const publicProofUrl = publicUrl;
+
+    console.log(`Manual proof uploaded to Supabase: ${publicProofUrl}`);
+    
+    // --- AKHIR LOGIKA BARU ---
+
 
     // Panggil fungsi terpusat untuk finalisasi pendaftaran
-    // Fungsi ini SEKARANG bertanggung jawab penuh atas pemindahan file excel dan foto
     await finalizeRegistration(
       registrationData,
       orderId,
       {
         method: 'MANUAL',
         status: 'WAITING_CONFIRMATION',
-        manualProofPath: publicProofPath,
+        manualProofPath: publicProofUrl, // Kirim URL publik, bukan path lokal
       }
     );
 
@@ -55,8 +80,12 @@ export async function POST(req: NextRequest) {
       orderId: orderId,
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    let errorMessage = "Gagal mengupload bukti pembayaran.";
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    }
     console.error('Manual payment upload error:', error);
-    return NextResponse.json({ message: "Gagal mengupload bukti pembayaran." }, { status: 500 });
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
