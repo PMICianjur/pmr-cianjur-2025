@@ -69,11 +69,28 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: "Data tidak lengkap." }, { status: 400 });
         }
         
+        console.log(`[UPLOAD-EXCEL] Starting upload for tempRegId: ${tempRegId}`);
+        console.log(`[UPLOAD-EXCEL] Bucket Name: ${BUCKET_NAME}`);
+        console.log(`[UPLOAD-EXCEL] Supabase URL is set: ${!!process.env.NEXT_PUBLIC_SUPABASE_URL}`);
+        console.log(`[UPLOAD-EXCEL] Supabase Service Key is set: ${!!process.env.SUPABASE_SERVICE_KEY}`);
+
         const arrayBuffer = await file.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer); 
-
+        const excelPath = `uploads/temp/${tempRegId}/data-peserta.xlsx`;
         // Tidak lagi menulis ke disk, langsung proses dari buffer
-        console.log(`[UPLOAD-EXCEL] Processing file from buffer for tempRegId: ${tempRegId}`);
+        console.log(`[UPLOAD-EXCEL] Attempting to upload Excel to: ${excelPath}`);
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from(BUCKET_NAME)
+            .upload(excelPath, fileBuffer, {
+                contentType: file.type,
+                upsert: true,
+            });
+        if (uploadError) {
+            console.error("!!! Supabase Excel upload error:", uploadError);
+            // Lempar error agar blok catch utama menanganinya
+            throw new Error(`Gagal mengunggah file Excel: ${uploadError.message}`);
+        }
+        console.log(`[UPLOAD-EXCEL] SUCCESS: Excel file uploaded to Supabase.`);
 
         const workbook = new ExcelJS.Workbook();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +98,7 @@ export async function POST(req: NextRequest) {
 
         const processedParticipants: ProcessedParticipant[] = [];
         const imageUploadPromises: Promise<unknown>[] = [];
+        
 
         // --- PROSES DATA PESERTA ---
         const participantsSheet = workbook.getWorksheet('PESERTA');
@@ -183,19 +201,13 @@ export async function POST(req: NextRequest) {
             processedCompanions = companionList;
         }
         
-        // Tunggu semua proses unggah gambar selesai
         const uploadResults = await Promise.all(imageUploadPromises);
         uploadResults.forEach(result => {
-            if (
-        result && 
-        typeof result === 'object' && 
-        'error' in result && 
-        result.error
-    ) {
-        // Di dalam blok ini, TypeScript sekarang "tahu" bahwa result.error ada.
-        console.error("A Supabase photo upload failed in background:", result.error);
-    }
-});
+            if (result && (result as any).error) {
+                // Log error spesifik untuk setiap gambar yang gagal
+                console.error("A Supabase photo upload failed in background:", (result as any).error);
+            }
+        });
         
         if (processedParticipants.length === 0) {
             throw new Error("Tidak ada data peserta valid yang ditemukan di file.");
