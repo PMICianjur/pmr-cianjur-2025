@@ -50,8 +50,16 @@ export const columns: ColumnDef<FormattedParticipant>[] = [
             return (
                 <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center">
                     {photoUrl ? (
-                        <Image src={photoUrl} alt={`Foto ${name}`} width={40} height={40} className="object-cover h-full w-full" />
-                    ) : (
+                                                <Image 
+                                                    src={photoUrl} 
+                                                    alt={`Foto ${name}`} 
+                                                    fill 
+                                                    className="object-cover h-full w-full" 
+                                                    width={40} 
+                                                    height={40}
+                                                    unoptimized
+                                                />
+                                            ): (
                         <User size={20} className="text-gray-400" />
                     )}
                 </div>
