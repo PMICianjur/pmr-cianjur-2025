@@ -181,27 +181,27 @@ export function PesertaTableWrapper() {
             </div>
         </div>
         
-        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50">
+        <div  className="rounded-lg border border-black">
             <Table>
-                <TableHeader className="hover:bg-transparent">
+                <TableHeader className="bg-pmi-red border  border-black">
                     {table.getHeaderGroups().map(headerGroup => (
-                        <TableRow key={headerGroup.id} className="border-neutral-800">
+                        <TableRow key={headerGroup.id} className="border border-black">
                             {headerGroup.headers.map(header => (
-                                <TableHead key={header.id} className="text-neutral-400">
+                                 <TableHead key={header.id} className="border text-center font-bold text-white border-black">
                                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                 </TableHead>
                             ))}
                         </TableRow>
                     ))}
                 </TableHeader>
-                <TableBody>
+                <TableBody className="border border-black">
                     {isLoading ? (
                         <TableRow><TableCell colSpan={columns.length} className="h-48 text-center"><div className="flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin" /><span>Memuat data peserta...</span></div></TableCell></TableRow>
                     ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map(row => (
-                            <TableRow key={row.original.no} className="border-neutral-800 hover:bg-neutral-800/50">
+                            <TableRow key={row.original.no} className="border-black border">
                                 {row.getVisibleCells().map(cell => 
-                                    <TableCell key={cell.id}>
+                                    <TableCell key={cell.id} className="border-black border">
                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                     </TableCell>
                                 )}
