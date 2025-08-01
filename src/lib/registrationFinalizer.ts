@@ -1,14 +1,13 @@
 import prisma from "@/lib/prisma";
 import { normalizeSchoolName } from "@/lib/normalization";
 import { supabaseAdmin } from './supabaseAdmin';
-import { Prisma, Gender, SchoolCategory, PaymentMethod, PaymentStatus } from '@prisma/client';
+import { Prisma, Gender, SchoolCategory, PaymentMethod, PaymentStatus, TentType } from '@prisma/client';
 import { generateAndSaveReceipt } from './receiptGenerator';
 import path from 'path';
 
-// Nama bucket Supabase Anda
 const BUCKET_NAME = 'pendaftaranfiles';
 
-// --- DEFINISI TIPE DATA ---
+// --- DEFINISI TIPE DATA YANG SESUAI DENGAN EXCEL DAN STATE ---
 interface SchoolData {
     schoolName: string;
     coachName: string;
@@ -16,37 +15,38 @@ interface SchoolData {
     category: SchoolCategory;
 }
 
-interface ParticipantData {
+// Tipe ini cocok dengan kolom di sheet "Data Peserta" & "Data Pendamping"
+interface ParticipantExcelRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT": string;
+    "ALAMAT": string; // Sesuai header Excel Anda
     "AGAMA": string;
     "GOL DARAH": string;
     "TAHUN MASUK": number;
-    "GENDER (L/P)": string;
-    "NO HP"?: string | number;
+    "NO HP"?: number | string;
+    "GENDER (L/P)": string; // Sesuai header Excel Anda
     photoUrl?: string | null;
 }
 
-interface CompanionData {
+interface CompanionExcelRow {
     "NO": number;
     "NAMA LENGKAP": string;
     "TEMPAT, TANGGAL LAHIR": string;
-    "ALAMAT": string;
+    "ALAMAT": string; // Sesuai header Excel Anda
     "AGAMA": string;
     "GOL DARAH": string;
     "TAHUN MASUK": number;
-    "GENDER (L/P)": string;
-    "NO HP"?: string | number;
+    "NO HP"?: number | string;
+    "GENDER (L/P)": string; // Sesuai header Excel Anda
 }
 
 interface RegistrationData {
   tempRegId?: string;
   schoolData: SchoolData;
   excelData: {
-    participants: ParticipantData[];
-    companions: CompanionData[];
+    participants: ParticipantExcelRow[];
+    companions: CompanionExcelRow[];
   };
   tentChoice: {
     type: 'bawa_sendiri' | 'sewa_panitia';
@@ -71,10 +71,7 @@ interface PaymentDetails {
   midtransResponse?: Record<string, unknown>;
 }
 
-/**
- * Fungsi terpusat untuk memfinalisasi pendaftaran.
- * Menyimpan data ke database dan memindahkan file di Supabase Storage.
- */
+
 export async function finalizeRegistration(
   data: RegistrationData,
   orderId: string,
@@ -116,16 +113,15 @@ export async function finalizeRegistration(
     if (excelData.participants && excelData.participants.length > 0) {
       const participantCreateData = excelData.participants
         .filter(p => p && p["NAMA LENGKAP"] && p["GENDER (L/P)"])
-        .map((p: ParticipantData) => {
+        .map((p: ParticipantExcelRow) => {
           const genderString = String(p["GENDER (L/P)"] || '').trim().toUpperCase();
           const finalGender: Gender = genderString.startsWith('L') ? 'LAKI_LAKI' : 'PEREMPUAN';
           const phoneNumberValue = p["NO HP"] ? String(p["NO HP"]) : null;
-          // Simpan URL temporer untuk sementara, akan di-update nanti
           const photoFilename = p.photoUrl ? p.photoUrl : null;
           return {
             fullName: String(p["NAMA LENGKAP"]),
             birthPlaceDate: String(p["TEMPAT, TANGGAL LAHIR"] || 'N/A'),
-            address: String(p["ALAMAT"] || 'N/A'),
+            address: String(p["ALAMAT"] || 'N/A'), // Membaca dari "ALAMAT"
             religion: String(p["AGAMA"] || 'N/A'),
             bloodType: String(p["GOL DARAH"] || '-').replace('-', '').trim() || null,
             entryYear: Number(p["TAHUN MASUK"]) || new Date().getFullYear(),
@@ -143,14 +139,14 @@ export async function finalizeRegistration(
     if (excelData.companions && excelData.companions.length > 0) {
        const companionCreateData = excelData.companions
         .filter(c => c && c["NAMA LENGKAP"] && c["GENDER (L/P)"])
-        .map((c: CompanionData) => {
+        .map((c: CompanionExcelRow) => {
           const genderString = String(c["GENDER (L/P)"] || '').trim().toUpperCase();
           const finalGender: Gender = genderString.startsWith('L') ? 'LAKI_LAKI' : 'PEREMPUAN';
           const phoneNumberValue = c["NO HP"] ? String(c["NO HP"]) : null;
           return {
             fullName: String(c["NAMA LENGKAP"]),
             birthPlaceDate: String(c["TEMPAT, TANGGAL LAHIR"] || 'N/A'),
-            address: String(c["ALAMAT"] || 'N/A'),
+            address: String(c["ALAMAT"] || 'N/A'), // Membaca dari "ALAMAT"
             religion: String(c["AGAMA"] || 'N/A'),
             bloodType: String(c["GOL DARAH"] || '-').replace('-', '').trim() || null,
             entryYear: Number(c["TAHUN MASUK"]) || new Date().getFullYear(),
@@ -172,45 +168,57 @@ export async function finalizeRegistration(
   });
 
   // 2. Setelah transaksi DB berhasil, proses file di Supabase Storage
-if (newRegistrationId && tempRegId) {
+  if (newRegistrationId && tempRegId) {
     const schoolSlug = schoolData.schoolName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 50);
     const tempFolderPath = `uploads/temp/${tempRegId}`;
     const permanentFolderPath = `uploads/permanent/${schoolSlug}`;
     
+    // Proses File Excel
     try {
-        // --- MEMINDAHKAN DAN MERENAME FILE EXCEL ---
-        const newExcelFilename = `${newRegistrationId}-${schoolSlug}.xlsx`;
-        const fromExcelPath = `${tempFolderPath}/data-peserta.xlsx`;
-        const toExcelPath = `${permanentFolderPath}/${newExcelFilename}`;
+const newExcelFilename = `${newRegistrationId}-${schoolSlug}.xlsx`;
+  const fromExcelPath = `${tempFolderPath}/data-peserta.xlsx`;
+  const toExcelPath = `${permanentFolderPath}/${newExcelFilename}`;
 
-        const { error: moveExcelError } = await supabaseAdmin.storage.from(BUCKET_NAME).move(fromExcelPath, toExcelPath);
-        if (moveExcelError && moveExcelError.message !== 'The resource was not found') {
-            // Abaikan error "not found" karena mungkin file tidak diunggah, tapi lempar error lain
-            throw new Error(`Supabase move Excel error: ${moveExcelError.message}`);
-        }
-        
-        if (!moveExcelError) {
-             const { data: { publicUrl: excelPublicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(toExcelPath);
-             await prisma.registration.update({ where: { id: newRegistrationId }, data: { excelFilePath: excelPublicUrl } });
-             console.log(`Registration ${newRegistrationId} updated with permanent Excel path.`);
-        }
+  console.log(`[FINALIZE] Attempting to move Excel from: ${fromExcelPath} to: ${toExcelPath}`);
+  
+  const { error: moveExcelError } = await supabaseAdmin.storage.from(BUCKET_NAME).move(fromExcelPath, toExcelPath);
 
-        // --- MEMINDAHKAN FOTO PESERTA DAN UPDATE PATH DI DB ---
+  if (moveExcelError) {
+      console.error(`[FINALIZE] ERROR moving Excel file:`, moveExcelError.message);
+      // JANGAN LANJUTKAN JIKA MOVE GAGAL, tapi jangan hentikan seluruh proses
+  } else {
+      console.log(`[FINALIZE] SUCCESS: Excel file moved.`);
+      // Dapatkan URL publik dari LOKASI BARU
+      const { data: { publicUrl: excelPublicUrl } } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(toExcelPath);
+      
+      console.log(`[FINALIZE] Updating DB with Excel path: ${excelPublicUrl}`);
+      try {
+          await prisma.registration.update({ 
+              where: { id: newRegistrationId }, 
+              data: { excelFilePath: excelPublicUrl } 
+          });
+          console.log(`[FINALIZE] SUCCESS: DB updated with excelFilePath.`);
+      } catch (dbError) {
+          console.error(`[FINALIZE] ERROR updating excelFilePath in DB:`, dbError);
+      }
+  }
+    } catch (error: unknown) {
+        console.error("Error processing Excel file:", error instanceof Error ? error.message : "Unknown error");
+    }
+
+    // Proses Foto Peserta
+    try {
         const participantsInDB = await prisma.participant.findMany({ where: { registrationId: newRegistrationId }, select: { id: true, photoFilename: true } });
-        
-        const photoPathsToRemove: string[] = []; // Kumpulkan path foto temporer
         const photoUpdatePromises = participantsInDB
             .filter(p => p.photoFilename && p.photoFilename.includes(`/temp/${tempRegId}/`))
             .map(async (participant) => {
                 const tempPhotoUrl = new URL(participant.photoFilename!);
-                const fromPhotoPath = tempPhotoUrl.pathname.substring(tempPhotoUrl.pathname.indexOf('/uploads/'));
+                const fromPhotoPath = tempPhotoUrl.pathname.substring(tempPhotoUrl.pathname.indexOf(BUCKET_NAME) + BUCKET_NAME.length + 1); // Dapatkan path setelah nama bucket
                 
                 const tempPhotoFilename = path.basename(fromPhotoPath);
                 const toPhotoPath = `${permanentFolderPath}/photos/${tempPhotoFilename}`;
                 
-                photoPathsToRemove.push(fromPhotoPath.slice(1)); // Hapus '/' di awal untuk .remove()
-
-                const { error: movePhotoError } = await supabaseAdmin.storage.from(BUCKET_NAME).move(fromPhotoPath.slice(1), toPhotoPath);
+                const { error: movePhotoError } = await supabaseAdmin.storage.from(BUCKET_NAME).move(fromPhotoPath, toPhotoPath);
                 
                 if (movePhotoError && movePhotoError.message !== 'The resource was not found') {
                     console.error(`Failed to move photo ${fromPhotoPath}:`, movePhotoError.message);
@@ -226,26 +234,27 @@ if (newRegistrationId && tempRegId) {
             
         await Promise.all(photoUpdatePromises);
         console.log("All participant photo paths updated to permanent URLs.");
-        
-        // --- PEMBERSIHAN FOLDER TEMPORER DENGAN CARA YANG BENAR ---
-        const allPathsToRemove = [fromExcelPath, ...photoPathsToRemove];
-        if (allPathsToRemove.length > 0) {
-             const { error: removeError } = await supabaseAdmin.storage.from(BUCKET_NAME).remove(allPathsToRemove);
-             if (removeError) {
-                 console.error("Supabase cleanup error:", removeError.message);
-             } else {
-                 console.log(`Supabase temp files for ${tempRegId} cleaned up.`);
-             }
+    } catch (error: unknown) {
+        console.error("Error processing photo files:", error instanceof Error ? error.message : "Unknown error");
+    }
+
+    // Hapus Folder Temporer
+    try {
+        const { data: filesToRemove, error: listError } = await supabaseAdmin.storage.from(BUCKET_NAME).list(tempFolderPath, { limit: 1000 });
+        if (listError) throw listError;
+        if (filesToRemove && filesToRemove.length > 0) {
+            const pathsToRemove = filesToRemove.map(f => `${tempFolderPath}/${f.name}`);
+            pathsToRemove.push(`${tempFolderPath}/data-peserta.xlsx`); // Hapus file excel juga
+            await supabaseAdmin.storage.from(BUCKET_NAME).remove(pathsToRemove);
+            console.log(`Supabase temp files for ${tempRegId} cleaned up.`);
         }
-    } catch (storageError: unknown) {
-        const errorMessage = storageError instanceof Error ? storageError.message : "An unknown error occurred during file finalization.";
-        console.error(`Error processing Supabase files for tempRegId ${tempRegId}:`, errorMessage);
+    } catch (error: unknown) {
+        console.error("Error cleaning up temp folder:", error instanceof Error ? error.message : "Unknown error");
     }
     
-    // 3. Buat dan simpan kwitansi PDF (setelah semua selesai)
+    // 3. Buat dan simpan kwitansi PDF
     try {
         console.log("Starting receipt generation process...");
-        // Asumsikan generateAndSaveReceipt sudah diubah untuk upload ke Supabase dan return URL
         const receiptPath = await generateAndSaveReceipt(orderId, schoolSlug, normalizedName);
         await prisma.payment.update({ where: { id: orderId }, data: { receiptPath: receiptPath } });
         console.log(`Payment record for ${orderId} updated with receipt path.`);

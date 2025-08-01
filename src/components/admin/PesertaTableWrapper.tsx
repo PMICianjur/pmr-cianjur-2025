@@ -30,7 +30,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Download, ListFilter, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
+import { Download, ListFilter, CircleUser, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 import { FormattedParticipant } from "@/types/admin";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -53,7 +53,7 @@ export const columns: ColumnDef<FormattedParticipant>[] = [
                         <Image src={photoUrl} alt={`Foto ${name}`} width={40} height={40} className="object-cover h-full w-full" unoptimized />
                     ) 
                    : (
-                        <User size={20} className="text-gray-400" />
+                        <CircleUser size={40} strokeWidth={1}  className="text-black" />
                     )}
                 </div>
             );

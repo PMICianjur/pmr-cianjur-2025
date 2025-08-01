@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { FormattedRegistration } from "@/types/admin";
-import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, Receipt, Loader2 } from "lucide-react";
+import { MoreHorizontal, Download, ListFilter,ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, Receipt, Loader2, FileText } from "lucide-react";
 import { SchoolCategory, PaymentStatus } from "@prisma/client";
 import { toast } from 'sonner';
 import { motion } from "framer-motion";
@@ -120,6 +120,7 @@ export function PendaftarTableWrapper() {
     setSelectedProofUrl(proofUrl);
     setSelectedSchoolName(schoolName);
     setIsProofModalOpen(true);
+    
   };
 
 
@@ -196,76 +197,75 @@ export function PendaftarTableWrapper() {
     },
     
             {
-            id: "dokumen",
-            header: () => <div className="text-center">Dokumen</div>,
-            enableHiding: false, // Memastikan kolom ini tidak bisa disembunyikan
-            cell: ({ row }) => {
-                const { receiptPath } = row.original;
-                const { excelFilePath } = row.original;
-                
-                
-                // Jika tidak ada path file, tampilkan strip
-                if (!excelFilePath) {
-                    return <div className="text-center text-muted-foreground">-</div>;
-                }
+    id: "dokumen",
+    header: () => <div className="text-center">Dokumen</div>,
+    enableHiding: false,
+    cell: ({ row }) => {
+        // --- PERBAIKAN CARA MENGAMBIL DATA ---
+        const { excelFilePath, receiptPath } = row.original;
 
-                const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-                const fullExcelUrl = `${appUrl}${excelFilePath}`;
-                const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fullExcelUrl)}&embedded=true`;
-                
-                return (
-                    <div className="flex gap-2 justify-center">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button asChild variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-neutral-800 hover:text-white">
-                                        <a href={viewerUrl} target="_blank" rel="noopener noreferrer">
-                                            <ExternalLink className="h-4 w-4" />
-                                        </a>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className=" p-1 text-white rounded-md font-sans font-semibold bg-black">
-                                    <p>Lihat Excel di Browser</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
 
-                        <TooltipProvider>
-                             <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button asChild variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-neutral-800 hover:text-white">
-                                        <a href={excelFilePath} download>
-                                            <Download className="h-4 w-4" />
-                                        </a>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className=" p-1  text-white rounded-md font-sans font-semibold bg-black">
-                                    <p>Unduh File Excel</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                        
+        // Jika tidak ada dokumen sama sekali, tampilkan strip
+        if (!excelFilePath && !receiptPath) {
+            return <div className="text-center text-muted-foreground">-</div>;
+        }
 
-                     {receiptPath && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button asChild variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-black hover:text-white">
-                                            <a href={receiptPath} target="_blank" rel="noopener noreferrer">
-                                                <Receipt className="h-4 w-4 text-pmi-red" />
-                                            </a>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent className=" p-1  text-white rounded-md font-sans font-semibold bg-black">
-                                        <p>Lihat/Unduh Kwitansi PDF</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        )}
-                    </div>
-                );
-            },
-        },
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        
+        // Buat URL viewer hanya jika excelFilePath ada
+        const viewerUrl = excelFilePath 
+            ? `https://docs.google.com/gview?url=${encodeURIComponent(`${appUrl}${excelFilePath}`)}&embedded=true`
+            : '#';
+        
+        return (
+            <div className="flex gap-2 justify-center">
+                <TooltipProvider>
+                    {/* Tombol Dokumen Excel (Dropdown) */}
+                    {excelFilePath && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-neutral-800 hover:text-white">
+                                    <FileText className="h-4 w-4" />
+                                    <span className="sr-only">Opsi File Excel</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-neutral-900 border-neutral-700 text-white">
+                                <DropdownMenuLabel>File Pendaftaran</DropdownMenuLabel>
+                                <DropdownMenuSeparator className="bg-neutral-700" />
+                                <DropdownMenuItem asChild>
+                                    <a href={viewerUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 cursor-pointer">
+                                        <ExternalLink className="h-4 w-4" /> Lihat di Browser
+                                    </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <a href={excelFilePath} download className="flex items-center gap-2 cursor-pointer">
+                                        <Download className="h-4 w-4" /> Unduh Langsung
+                                    </a>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                    
+                    {/* Tombol Kwitansi PDF */}
+                    {receiptPath && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button asChild variant="outline" size="icon" className="h-8 w-8 bg-transparent border-neutral-700 hover:bg-neutral-800 hover:text-white">
+                                    <a href={receiptPath} target="_blank" rel="noopener noreferrer">
+                                        <Receipt className="h-4 w-4 text-green-400" />
+                                    </a>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Lihat/Unduh Kwitansi PDF</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    )}
+                </TooltipProvider>
+            </div>
+        );
+    },
+},
     {
         id: "actions",
         enableHiding: false,
@@ -353,7 +353,7 @@ export function PendaftarTableWrapper() {
                                 Konfirmasi Pembayaran
                             </DropdownMenuItem>
                         }
-                        {registration.manualProofPath && <DropdownMenuItem onSelect={() => handleViewProof(registration.manualProofPath!, registration.normalizedName)} className="text-white focus:bg-red-800 focus:text-white rounded-lg transition-colors duration-200">Lihat Bukti Bayar</DropdownMenuItem>}
+                        {registration.manualProofPath && <DropdownMenuItem onSelect={() => handleViewProof(registration.manualProofPath!, registration.normalizedName)} className="text-white focus:bg-red-800 focus:text-white rounded-lg transition-colors duration-200" >Lihat Bukti Bayar</DropdownMenuItem>}
 
                         <DropdownMenuSeparator className="bg-black"/>
                         <DropdownMenuItem

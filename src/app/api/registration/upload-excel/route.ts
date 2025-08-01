@@ -75,6 +75,19 @@ export async function POST(req: NextRequest) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await workbook.xlsx.load(fileBuffer as any);
         
+        const excelPath = `uploads/temp/${tempRegId}/data-peserta.xlsx`;
+const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    .from(BUCKET_NAME)
+    .upload(excelPath, fileBuffer, { // `fileBuffer` di sini, bukan `file`
+        contentType: file.type,
+        upsert: true,
+    });
+
+if (uploadError) {
+    console.error("!!! FATAL: Supabase Excel upload error:", uploadError);
+    throw new Error(`Gagal mengunggah file Excel: ${uploadError.message}`);
+}
+console.log(`[UPLOAD-EXCEL] SUCCESS: Excel file uploaded to Supabase. Path: ${uploadData.path}`);
 
         // --- PROSES DATA PESERTA ---
         const participantsSheet = workbook.getWorksheet('PESERTA');
