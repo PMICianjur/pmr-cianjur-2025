@@ -1,8 +1,6 @@
 // src/app/api/payment/manual-upload/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import { generateSafeOrderId } from "@/lib/orderId";
 import { finalizeRegistration } from "@/lib/registrationFinalizer"; // Impor fungsi finalizer
